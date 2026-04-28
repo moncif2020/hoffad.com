@@ -28,7 +28,9 @@ export const UnifiedQuranSearch: React.FC<UnifiedQuranSearchProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [ayahResults, setAyahResults] = useState<any[]>([]);
+  const [filteredSurahs, setFilteredSurahs] = useState<Option[]>(options);
   const [isSearchingAyahs, setIsSearchingAyahs] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -44,36 +46,55 @@ export const UnifiedQuranSearch: React.FC<UnifiedQuranSearchProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Debounce search term
   useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      // Only search for Ayahs when search term is 3 or more chars
-      if (searchTerm.trim().length < 3) {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Handle results based on debounced term
+  useEffect(() => {
+    const fetchResults = async () => {
+      const term = debouncedSearchTerm.trim();
+      
+      // 1. Filter Surahs locally
+      if (!term) {
+        setFilteredSurahs(options);
+        setAyahResults([]);
+        return;
+      }
+
+      const cleanSearch = normalizeLatin(term);
+      const filtered = options.filter(opt => {
+        return (
+          opt.name.toLowerCase().includes(term.toLowerCase()) || 
+          (opt.englishName && normalizeLatin(opt.englishName).includes(cleanSearch)) ||
+          opt.id.toString().includes(term)
+        );
+      });
+      setFilteredSurahs(filtered);
+
+      // 2. Search for Ayahs (only if not just a short query or numeric)
+      if (term.length < 3 || /^\d+$/.test(term)) {
         setAyahResults([]);
         return;
       }
 
       setIsSearchingAyahs(true);
       try {
-        const results = await searchInQuran(searchTerm);
-        setAyahResults(results.slice(0, 5)); // Keep list short for integrated view
+        const results = await searchInQuran(term);
+        setAyahResults(results.slice(0, 5));
       } catch (err) {
         console.error(err);
       } finally {
         setIsSearchingAyahs(false);
       }
-    }, 500);
+    };
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm]);
-
-  const filteredSurahs = options.filter(opt => {
-    const cleanSearch = normalizeLatin(searchTerm);
-    return (
-      opt.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (opt.englishName && normalizeLatin(opt.englishName).includes(cleanSearch)) ||
-      opt.id.toString().includes(searchTerm)
-    );
-  });
+    fetchResults();
+  }, [debouncedSearchTerm, options]);
 
   return (
     <div className="relative w-full" ref={containerRef}>

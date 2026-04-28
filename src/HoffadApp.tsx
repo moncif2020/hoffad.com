@@ -35,6 +35,13 @@ const devError = (...args: any[]) => {
   if (import.meta.env.DEV) console.error(...args);
 };
 
+const formatTime = (seconds: number) => {
+  if (isNaN(seconds) || seconds === Infinity) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 // --- Types ---
 type View = 'garden' | 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade';
 type Lesson = { id: string; title: string; text: string; type?: 'quran' | 'custom'; audioUrl?: string; lang?: string };
@@ -400,7 +407,8 @@ function ListenScreen({ lang }: { lang: Language }) {
     playTrack, pause, resume, stop, startNewPlaylist,
     reciter, setReciter,
     repetitions, setRepetitions,
-    rangeRepetitions, setRangeRepetitions
+    rangeRepetitions, setRangeRepetitions,
+    currentTime, duration, sessionTime, overallProgress
   } = useAudio();
 
   // Custom Text State
@@ -658,53 +666,71 @@ function ListenScreen({ lang }: { lang: Language }) {
           <motion.div 
             initial={{ opacity: 0, y: 20 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className="bg-white p-6 sm:p-10 rounded-[40px] shadow-2xl border border-slate-100 mb-8 flex flex-col lg:flex-row gap-8 items-center lg:items-center text-center lg:text-right"
+            className="bg-white p-4 sm:p-8 rounded-[40px] shadow-2xl border border-slate-100 mb-8 flex flex-col gap-6"
           >
-            <div className="flex-1 w-full order-2 lg:order-1">
-              <div className="bg-emerald-50/50 p-8 sm:p-12 rounded-[32px] border-2 border-emerald-100/50 mb-0 w-full min-h-[250px] flex items-center justify-center shadow-inner">
-                <p className="text-3xl sm:text-5xl leading-relaxed sm:leading-[1.8] font-arabic text-slate-800 text-center">
-                  {playlist[currentTrackIndex].text} ۝
-                </p>
-              </div>
-            </div>
-            
-            <div className="w-full lg:w-1/3 flex flex-col items-center justify-center order-1 lg:order-2 bg-emerald-50/30 p-8 rounded-[32px] border border-emerald-100">
-              <div className="bg-emerald-100 p-6 rounded-full mb-6">
-                <Volume2 size={56} className="text-emerald-500 animate-pulse" />
-              </div>
-              <h3 className="text-2xl font-bold text-slate-700 mb-6">
-                {lang === 'ar' ? selectedSurahData?.name : `${selectedSurahData?.englishName} (${selectedSurahData?.name})`}
-                <span className="block text-lg text-emerald-600 mt-2">{t[lang].ayah} {playlist[currentTrackIndex].ayah}</span>
-              </h3>
-              
-              <div className="flex items-center gap-6 w-full justify-center mb-8">
+            {/* Player UI (Voice Note Style) */}
+            <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                 <h3 className="text-xl sm:text-2xl font-bold text-emerald-700 flex flex-wrap items-center gap-2">
+                  <span className="font-arabic">{lang === 'ar' ? selectedSurahData?.name : `${selectedSurahData?.englishName} (${selectedSurahData?.name})`}</span>
+                  <span className="text-lg sm:text-xl text-emerald-500 font-arabic">{t[lang].ayah} {playlist[currentTrackIndex].ayah}</span>
+                </h3>
+                
                 <button 
                   onClick={stopListening}
-                  className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200 focus:ring-4 focus:ring-red-300 outline-none transition-all"
-                  title="S - Stop"
+                  className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title={t[lang].stopListening || 'Stop'}
                 >
-                  <Square size={28} fill="currentColor" />
-                </button>
-                <button 
-                  onClick={togglePlayPause}
-                  className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all transform active:scale-95"
-                  title="Space - Play/Pause"
-                >
-                  {isPlaying ? <Pause size={40} fill="currentColor" /> : <Play size={40} fill="currentColor" className="ml-2" />}
+                  <X size={24} />
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-slate-600 font-bold text-xl">
-                  {t[lang].currentRepetition.replace('{current}', String((currentTrackIndex % repetitions) + 1)).replace('{total}', String(repetitions))}
-                </p>
+              <div className="w-full bg-emerald-50/50 p-2 sm:p-2.5 rounded-full border border-emerald-100 flex items-center gap-3 sm:gap-4" style={{ direction: 'ltr' }}>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 bg-white border border-emerald-200 flex items-center justify-center p-2 shadow-sm">
+                  <img src="/logo.svg" alt="Hoffad" className="w-full h-full object-contain" />
+                </div>
+                
+                <button 
+                  onClick={togglePlayPause}
+                  className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-emerald-600 shadow-lg transition-all active:scale-95"
+                >
+                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                </button>
+                
+                <div className="flex-1 flex items-center gap-3 pr-2 sm:pr-4">
+                  <div className="flex-1 h-1.5 bg-emerald-200/50 rounded-full overflow-hidden relative">
+                    <motion.div 
+                      className="absolute inset-y-0 left-0 bg-emerald-500"
+                      animate={{ width: `${overallProgress}%` }}
+                      transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+                    />
+                  </div>
+                  <div className="text-xs sm:text-sm font-black text-emerald-600 font-mono min-w-[45px] text-right">
+                    {formatTime(sessionTime)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <div className="flex items-center gap-2 bg-emerald-100/50 px-4 py-1.5 rounded-full text-emerald-700 font-bold text-sm">
+                  <span className="opacity-70">{t[lang].currentRepetition.split(':')[0]}</span>
+                  <span>{(currentTrackIndex % repetitions) + 1} / {repetitions}</span>
+                </div>
                 {rangeRepetitions > 1 && (
-                  <p className="text-emerald-800 font-black text-sm bg-emerald-100 px-6 py-2 rounded-full uppercase tracking-wide">
-                    {t[lang].currentRangeRepetition
-                      .replace('{current}', String(Math.floor(currentTrackIndex / (playlist.length / rangeRepetitions)) + 1))
-                      .replace('{total}', String(rangeRepetitions))}
-                  </p>
+                  <div className="flex items-center gap-2 bg-blue-100/50 px-4 py-1.5 rounded-full text-blue-700 font-bold text-sm">
+                    <span className="opacity-70">{t[lang].currentRangeRepetition.split(':')[0]}</span>
+                    <span>{Math.floor(currentTrackIndex / (playlist.length / rangeRepetitions)) + 1} / {rangeRepetitions}</span>
+                  </div>
                 )}
+              </div>
+            </div>
+
+            {/* Quran Text - Maximize space */}
+            <div className="flex-1 w-full">
+              <div className="bg-emerald-50/20 p-8 sm:p-12 rounded-[32px] border-2 border-emerald-100/50 w-full min-h-[300px] flex items-center justify-center shadow-inner mt-2">
+                <p className="text-4xl sm:text-6xl leading-relaxed sm:leading-[1.8] font-arabic text-slate-800 text-center">
+                  {playlist[currentTrackIndex].text} ۝
+                </p>
               </div>
             </div>
           </motion.div>
@@ -851,41 +877,66 @@ function ListenScreen({ lang }: { lang: Language }) {
         )
       ) : (
         customPlaylist.length > 0 && customCurrentIndex >= 0 && customCurrentIndex < customPlaylist.length ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-6 flex flex-col items-center text-center">
-            <Volume2 size={40} className="text-emerald-500 mb-4 animate-pulse" />
-            <h3 className="text-lg font-bold text-slate-500 mb-2">
-              {t[lang].dictationText}
-            </h3>
-            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-8 w-full min-h-[120px] flex items-center justify-center">
-              <p className="text-2xl leading-loose font-medium text-slate-800" dir="auto">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="bg-white p-4 sm:p-8 rounded-[40px] shadow-2xl border border-slate-100 mb-8 flex flex-col gap-6"
+          >
+            <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-xl font-bold text-emerald-700">
+                  {t[lang].dictationText}
+                </h3>
+                <button 
+                  onClick={stopListening}
+                  className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="w-full bg-emerald-50/50 p-2 sm:p-2.5 rounded-full border border-emerald-100 flex items-center gap-3 sm:gap-4" style={{ direction: 'ltr' }}>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 bg-white border border-emerald-200 flex items-center justify-center p-2 shadow-sm">
+                  <img src="/logo.svg" alt="Hoffad" className="w-full h-full object-contain" />
+                </div>
+                
+                <button 
+                  onClick={togglePlayPause}
+                  className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center flex-shrink-0 hover:bg-emerald-600 shadow-lg transition-all active:scale-95"
+                >
+                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                </button>
+                
+                <div className="flex-1 flex items-center gap-3 pr-2 sm:pr-4">
+                  <div className="flex-1 h-1.5 bg-emerald-200/50 rounded-full overflow-hidden relative">
+                    <motion.div 
+                      className="absolute inset-y-0 left-0 bg-emerald-500"
+                      animate={{ width: `${((customCurrentIndex) / customPlaylist.length) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-xs sm:text-sm font-black text-emerald-600 font-mono min-w-[45px] text-right">
+                    {formatTime(sessionTime)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-emerald-50/20 p-8 sm:p-12 rounded-[32px] border-2 border-emerald-100/50 w-full min-h-[150px] flex items-center justify-center shadow-inner mt-2">
+              <p className="text-2xl sm:text-4xl leading-loose font-medium text-slate-800 text-center" dir="auto">
                 {customPlaylist[customCurrentIndex]}
               </p>
             </div>
-            
-            <div className="flex items-center gap-4 w-full justify-center">
-              <button 
-                onClick={stopListening}
-                className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors"
-              >
-                <Square size={24} fill="currentColor" />
-              </button>
-              <button 
-                onClick={togglePlayPause}
-                className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
-              >
-                {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-2" />}
-              </button>
-            </div>
-            <div className="flex flex-col items-center gap-1 mt-6">
-              <p className="text-slate-500 font-medium">
-                {t[lang].currentRepetition.replace('{current}', String((customCurrentIndex % customReps) + 1)).replace('{total}', String(customReps))}
-              </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className="flex items-center gap-2 bg-emerald-100/50 px-4 py-1.5 rounded-full text-emerald-700 font-bold text-sm">
+                <span className="opacity-70">{t[lang].currentRepetition.split(':')[0]}</span>
+                <span>{(customCurrentIndex % customReps) + 1} / {customReps}</span>
+              </div>
               {customRangeReps > 1 && (
-                <p className="text-emerald-600 font-bold text-sm bg-emerald-50 px-3 py-1 rounded-full">
-                  {t[lang].currentRangeRepetition
-                    .replace('{current}', String(Math.floor(customCurrentIndex / (customPlaylist.length / customRangeReps)) + 1))
-                    .replace('{total}', String(customRangeReps))}
-                </p>
+                <div className="flex items-center gap-2 bg-blue-100/50 px-4 py-1.5 rounded-full text-blue-700 font-bold text-sm">
+                  <span className="opacity-70">{t[lang].currentRangeRepetition.split(':')[0]}</span>
+                  <span>{Math.floor(customCurrentIndex / (customPlaylist.length / customRangeReps)) + 1} / {customRangeReps}</span>
+                </div>
               )}
             </div>
           </motion.div>
@@ -948,7 +999,7 @@ export default function App() {
   const [lang, setLang] = useState<Language>('ar');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
-  const { isPlaying, playlist, currentTrackIndex, pause, resume } = useAudio();
+  const { isPlaying, playlist, currentTrackIndex, pause, resume, currentTime, duration, sessionTime, stop, overallProgress } = useAudio();
 
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
   const [deviceId] = useState(() => {
@@ -2861,7 +2912,7 @@ function ParentScreen({
       
       // Join ayahs with the beautiful end-of-ayah symbol
       let text = selectedAyahs.map((a: any) => a.text).join(' ۝ ') + ' ۝';
-      const surahName = data.surahName;
+      const surahName = data.surahName || '';
       const title = `${surahName} ${t[lang].ayahsRange.replace('{start}', String(startAyah)).replace('{end}', String(endAyah))}`;
       
       await onAddLesson({ title, text, type: 'quran' });

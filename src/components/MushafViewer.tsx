@@ -89,7 +89,7 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
     else juz = 1;
 
     return {
-      surahName: surah ? surah.name.replace('سُورَةُ ', '') : '',
+      surahName: surah ? (surah.name || "").replace('سُورَةُ ', '') : '',
       surahEnglish: surah ? QURAN_SURAHS[surah.number - 1]?.englishName || '' : '',
       juz: juz
     };

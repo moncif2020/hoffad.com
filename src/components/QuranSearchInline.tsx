@@ -96,7 +96,7 @@ export function QuranSearchInline({ onSelect, onBack, lang, autoFocus = true }: 
         setResults([]);
         setAyahMatchesCount(0);
       }
-    }, 400);
+    }, 300);
 
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
@@ -151,46 +151,11 @@ export function QuranSearchInline({ onSelect, onBack, lang, autoFocus = true }: 
         )}
 
         {!isLoading && query.length === 0 && (
-          <div className="flex flex-col h-full overflow-hidden">
-            <div className="text-center py-6 text-slate-400">
-              <div className="bg-emerald-50 dark:bg-emerald-900/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-100 dark:border-emerald-900/30">
-                <BookOpen className="text-emerald-500" size={32} />
-              </div>
-              <p className="font-bold text-lg mb-1 text-slate-700 dark:text-slate-300">
-                {lang === 'ar' ? 'فهرس السور' : 'Surah Index'}
-              </p>
-              <p className="text-xs max-w-[280px] mx-auto opacity-70">
-                {lang === 'ar' 
-                  ? 'تصفح السور أو ابحث برقمها أو اسمها أو أي آية.' 
-                  : 'Browse surahs or search by number, name, or any verse.'}
-              </p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {QURAN_SURAHS.map((surah) => (
-                  <motion.button
-                    key={`surah-index-${surah.number}`}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => onSelect(surah.number, 1, 'view')}
-                    className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all text-right group"
-                  >
-                    <span className="w-10 h-10 shrink-0 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-400 group-hover:bg-emerald-100 group-hover:text-emerald-600 dark:group-hover:bg-emerald-900/40 transition-colors flex items-center justify-center font-black text-sm border border-slate-100 dark:border-slate-800/50">
-                      {surah.number}
-                    </span>
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <p className="font-black text-slate-800 dark:text-slate-200 truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                        {surah.name}
-                      </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">
-                        {surah.englishName} • {surah.numberOfAyahs} {lang === 'ar' ? 'آية' : 'Ayahs'}
-                      </p>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 opacity-50">
+            <BookOpen size={48} className="mb-4" />
+            <p className="font-bold text-lg">
+              {lang === 'ar' ? 'ابدأ البحث...' : 'Start searching...'}
+            </p>
           </div>
         )}
 

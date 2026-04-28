@@ -10,6 +10,18 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [sessionTime, setSessionTime] = useState(0);
+
+  useEffect(() => {
+    let interval: any;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setSessionTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -38,8 +50,11 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
             setIsLoading(false);
             setIsPlaying(true);
           }).catch(e => {
-            devError("Initial playback promise failed", e);
-            // Error event will handle retry
+            // AbortError/interruption is common when src is changed rapidly
+            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
+              devError("Initial playback promise failed", e);
+            }
+            // Error event will handle retry for real failures
           });
         }
       }
@@ -68,6 +83,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     setIsPlaying(false);
     setCurrentTrackIndex(-1);
     setPlaylist([]);
+    setSessionTime(0);
   };
 
   const handleAudioEnded = () => {
@@ -88,6 +104,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   const startNewPlaylist = (newPlaylist: any[], startIndex: number = 0) => {
     playlistRef.current = newPlaylist;
     setPlaylist(newPlaylist);
+    setSessionTime(0);
     playTrack(startIndex);
   };
 
@@ -124,19 +141,25 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     setIsPlaying(true);
   };
 
+  const value = React.useMemo(() => ({
+    playlist, setPlaylist,
+    currentTrackIndex, setCurrentTrackIndex,
+    isPlaying, setIsPlaying,
+    isLoading, setIsLoading,
+    playTrack, pause, resume, stop,
+    startNewPlaylist,
+    reciter, setReciter,
+    repetitions, setRepetitions,
+    rangeRepetitions, setRangeRepetitions,
+    currentTime, duration, sessionTime,
+    overallProgress: playlist.length > 0 ? ((currentTrackIndex + (duration > 0 ? currentTime / duration : 0)) / playlist.length) * 100 : 0
+  }), [
+    playlist, currentTrackIndex, isPlaying, isLoading, 
+    reciter, repetitions, rangeRepetitions, currentTime, duration, sessionTime
+  ]);
+
   return (
-    <AudioContext.Provider value={{
-      playlist, setPlaylist,
-      currentTrackIndex, setCurrentTrackIndex,
-      isPlaying, setIsPlaying,
-      isLoading, setIsLoading,
-      playTrack, pause, resume, stop,
-      startNewPlaylist,
-      reciter, setReciter,
-      repetitions, setRepetitions,
-      rangeRepetitions, setRangeRepetitions,
-      currentTime, duration
-    }}>
+    <AudioContext.Provider value={value}>
       {children}
       <audio 
         ref={audioRef} 
@@ -147,6 +170,8 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
         onCanPlay={() => setIsLoading(false)}
         onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
         onLoadedMetadata={() => audioRef.current && setDuration(audioRef.current.duration)}
+        preload="auto"
+        playsInline
       />
     </AudioContext.Provider>
   );

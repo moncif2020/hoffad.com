@@ -1,4 +1,4 @@
-import { landingTranslations, languages } from './src/landing-translations';
+import { landingTranslations, languages } from '../src/landing-translations';
 
 const newLangs = [
   { code: 'it', name: 'Italiano', dir: 'ltr' },

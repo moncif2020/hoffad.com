@@ -162,17 +162,27 @@ export async function safeJson(response: Response) {
 }
 
 export const fetchAyahs = async (surahNum: number, from: number, to: number) => {
+  if (!surahNum || surahNum < 1 || surahNum > 114) {
+    console.error(`fetchAyahs called with invalid surahNum: ${surahNum}`);
+    throw new Error(`Invalid surah number: ${surahNum}`);
+  }
+
   try {
     // Primary source: alquran.cloud
     try {
       const response = await fetchWithRetry(`https://api.alquran.cloud/v1/surah/${surahNum}/editions/quran-uthmani`);
       const data = await safeJson(response);
-      const surah = data.data?.[0];
-      if (!surah) throw new Error("Invalid data structure from alquran.cloud");
+      
+      if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        throw new Error("Invalid data structure from alquran.cloud");
+      }
+
+      const surah = data.data[0];
+      if (!surah) throw new Error("Surah object is null from alquran.cloud");
       
       return {
-        surahName: surah.name,
-        ayahs: surah.ayahs.slice(from - 1, to).map((a: any) => ({
+        surahName: surah.name || `Sura ${surahNum}`,
+        ayahs: (surah.ayahs || []).slice(from - 1, to).map((a: any) => ({
           number: a.number,
           numberInSurah: a.numberInSurah,
           text: a.text
@@ -185,13 +195,13 @@ export const fetchAyahs = async (surahNum: number, from: number, to: number) => 
       const data = await safeJson(response);
       const surahData = QURAN_SURAHS[surahNum - 1];
       
-      if (!data.verses) throw new Error("Invalid data structure from api.quran.com");
+      if (!data || !data.verses) throw new Error("Invalid data structure from api.quran.com");
 
       return {
-        surahName: surahData.name,
+        surahName: surahData?.name || `سورة ${surahNum}`,
         ayahs: data.verses.slice(from - 1, to).map((v: any) => ({
           number: v.id,
-          numberInSurah: parseInt(v.verse_key.split(':')[1]),
+          numberInSurah: parseInt(v.verse_key?.split(':')[1] || "0"),
           text: v.text_uthmani
         }))
       };
@@ -293,17 +303,18 @@ export const searchInQuran = async (keyword: string) => {
       try {
         const response = await fetchWithRetry('https://api.alquran.cloud/v1/quran/quran-simple-clean');
         const data = await safeJson(response);
-        if (data.status === 'OK') {
-          fullQuranSearchIndex = data.data.surahs.flatMap((s: any) => 
-            s.ayahs.map((a: any) => ({
+        if (data.status === 'OK' && data.data && data.data.surahs) {
+          fullQuranSearchIndex = data.data.surahs.flatMap((s: any) => {
+            if (!s) return [];
+            return (s.ayahs || []).map((a: any) => ({
               text: a.text,
               normalizedText: normalizeArabic(a.text),
               surahNumber: s.number,
-              surahName: s.name,
-              englishSurahName: QURAN_SURAHS[s.number - 1]?.englishName || s.englishName,
+              surahName: s.name || `Sura ${s.number}`,
+              englishSurahName: QURAN_SURAHS[s.number - 1]?.englishName || s.englishName || `Surah ${s.number}`,
               ayahNumber: a.numberInSurah
-            }))
-          );
+            }));
+          });
         }
       } catch (e) {
         console.error('Failed to load local index, falling back to per-request search', e);
@@ -336,13 +347,16 @@ export const searchInQuran = async (keyword: string) => {
       
       if (!data.data || !data.data.matches) return [];
 
-      return data.data.matches.map((match: any) => ({
-        text: match.text,
-        surahNum: match.surah.number,
-        surahName: match.surah.name,
-        englishSurahName: QURAN_SURAHS[match.surah.number - 1]?.englishName || match.surah.englishName,
-        ayahNum: match.numberInSurah
-      }));
+      return data.data.matches.map((match: any) => {
+        const s = match.surah || {};
+        return {
+          text: match.text,
+          surahNum: s.number,
+          surahName: s.name || `Sura ${s.number}`,
+          englishSurahName: QURAN_SURAHS[s.number - 1]?.englishName || s.englishName || `Surah ${s.number}`,
+          ayahNum: match.numberInSurah
+        };
+      });
     } catch (e) {
       // Final fallback search on api.quran.com if alquran.cloud is completely down
       const fallbackRes = await fetchWithRetry(`https://api.quran.com/api/v4/search?q=${encodeURIComponent(cleanKeyword)}&language=ar`);
