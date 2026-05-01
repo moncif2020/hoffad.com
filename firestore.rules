@@ -49,27 +49,34 @@ service cloud.firestore {
     }
 
     function isValidTVSession(data) {
-      return data.keys().hasAll(['status', 'deviceId', 'createdAt']) &&
-             data.status in ['waiting', 'linked'] &&
+      return data.keys().hasAll(['status', 'deviceId', 'updatedAt']) &&
+             data.status in ['waiting', 'linked', 'active'] &&
              isValidId(data.deviceId) &&
-             data.createdAt is timestamp &&
-             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time &&
              (data.get('currentAnonUid', '') is string);
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       
       allow create: if isOwner(userId) &&
-                       request.resource.data.keys().hasAll(['xp', 'coins', 'donations']) &&
-                       request.resource.data.xp is number &&
-                       request.resource.data.coins is number &&
-                       request.resource.data.donations is number;
+                       (
+                         !request.resource.data.keys().hasAny(['xp']) || 
+                         request.resource.data.xp is number
+                       ) &&
+                       (
+                         !request.resource.data.keys().hasAny(['coins']) || 
+                         request.resource.data.coins is number
+                       ) &&
+                       (
+                         !request.resource.data.keys().hasAny(['donations']) || 
+                         request.resource.data.donations is number
+                       );
       
       allow update: if isOwner(userId) &&
                        (
-                         !resource.data.keys().hasAll(['xp', 'coins', 'donations']) ||
                          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt'])
                        );
       
@@ -103,25 +110,22 @@ service cloud.firestore {
     match /tv_sessions/{sessionId} {
       allow get: if isValidId(sessionId) && (
         resource == null ||
-        resource.data.status in ['waiting', 'linked'] || 
-        (isSignedIn() && resource.data.uid == request.auth.uid) ||
+        resource.data.status in ['waiting', 'linked', 'active'] || 
+        (isSignedIn() && resource.data.get('uid', '') == request.auth.uid) ||
         (isSignedIn() && resource.data.get('currentAnonUid', '') == request.auth.uid)
       );
       
       allow list: if false;
 
-      allow create: if isValidTVSession(request.resource.data) && 
-                       request.resource.data.status == 'waiting';
+      allow create: if isValidTVSession(request.resource.data);
       
-      allow update: if isSignedIn() &&
-                       isValidProfileData(request.resource.data) &&
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'displayName', 'photoURL', 'status', 'email', 'linkedAt']) &&
-                       request.resource.data.status == 'linked' &&
-                       request.resource.data.uid == request.auth.uid &&
-                       resource.data.status == 'waiting';
+      allow update: if isSignedIn() && (
+                       (resource.data.get('uid', '') == request.auth.uid) ||
+                       (resource.data.get('currentAnonUid', '') == request.auth.uid) ||
+                       (resource.data.status == 'waiting')
+                     );
       
-      allow delete: if isSignedIn() && 
-                       resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.get('uid', '') == request.auth.uid);
     }
 
     match /pairings/{deviceId} {

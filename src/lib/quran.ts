@@ -217,26 +217,59 @@ export const downloadSurahAudio = async (
   from: number, 
   to: number, 
   reciter: string, 
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ) => {
   const total = to - from + 1;
   const cache = await caches.open('quran-audio');
   
   for (let i = from; i <= to; i++) {
+    if (signal?.aborted) throw new Error('Aborted');
+    
     const url = getAudioUrl(reciter, surahNum, i);
     const cached = await cache.match(url);
     if (!cached) {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         if (response.ok) {
           await cache.put(url, response);
         }
       } catch (e) {
+        if ((e as Error).name === 'AbortError') throw e;
         console.error(`Failed to download ayah ${i} of surah ${surahNum}`, e);
       }
     }
     if (onProgress) {
       onProgress(Math.round(((i - from + 1) / total) * 100));
+    }
+  }
+};
+
+export const downloadFullQuranAudio = async (
+  reciter: string,
+  onProgress?: (progress: number, surahName: string) => void,
+  signal?: AbortSignal
+) => {
+  let totalAyahsDownloaded = 0;
+  const totalAyahs = 6236;
+
+  for (const surah of QURAN_SURAHS) {
+    if (signal?.aborted) throw new Error('Aborted');
+    
+    await downloadSurahAudio(
+      surah.number,
+      1,
+      surah.numberOfAyahs,
+      reciter,
+      (_) => {
+        // We track overall progress based on ayahs
+      },
+      signal
+    );
+    
+    totalAyahsDownloaded += surah.numberOfAyahs;
+    if (onProgress) {
+      onProgress(Math.round((totalAyahsDownloaded / totalAyahs) * 100), surah.name);
     }
   }
 };

@@ -35,14 +35,37 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   const devLog = (...args: any[]) => { if (import.meta.env.DEV) console.log(...args); };
   const devError = (...args: any[]) => { if (import.meta.env.DEV) console.error(...args); };
 
-  const playTrack = (index: number) => {
+  const blobUrlRef = useRef<string | null>(null);
+  const playTrack = async (index: number) => {
     const currentPlaylist = playlistRef.current;
     if (index >= 0 && index < currentPlaylist.length) {
       setCurrentTrackIndex(index);
       setRetryCount(0); // Reset retry count for new track
       setIsLoading(true);
       if (audioRef.current) {
-        audioRef.current.src = currentPlaylist[index].url;
+        // Clean up previous blob URL if it exists
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = null;
+        }
+
+        let audioSrc = currentPlaylist[index].url;
+        
+        // Try to find in cache
+        try {
+          const cache = await caches.open('quran-audio');
+          const cachedResponse = await cache.match(audioSrc);
+          if (cachedResponse) {
+            devLog("Playing from cache:", audioSrc);
+            const blob = await cachedResponse.blob();
+            audioSrc = URL.createObjectURL(blob);
+            blobUrlRef.current = audioSrc;
+          }
+        } catch (err) {
+          devError("Cache access error:", err);
+        }
+
+        audioRef.current.src = audioSrc;
         audioRef.current.load();
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
@@ -50,11 +73,9 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
             setIsLoading(false);
             setIsPlaying(true);
           }).catch(e => {
-            // AbortError/interruption is common when src is changed rapidly
             if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
               devError("Initial playback promise failed", e);
             }
-            // Error event will handle retry for real failures
           });
         }
       }

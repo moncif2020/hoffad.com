@@ -21,16 +21,41 @@ export function RemoteUploadPage() {
   const navigate = useNavigate();
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+  // 1. Session Validation on mount
+  useEffect(() => {
+    if (!deviceId) return;
+    
+    const validateSession = async () => {
+      try {
+        const sessionDoc = await getDoc(doc(db, 'tv_sessions', deviceId));
+        if (!sessionDoc.exists()) {
+          setError("Invalid TV Session. Please refresh your TV.");
+          setStatus('error');
+        } else {
+          // If status is 'waiting', it might still be valid for upload if anonUid is present
+          const data = sessionDoc.data();
+          if (!data.currentAnonUid) {
+            setError("TV is not ready. Please make sure the QR code is visible.");
+            setStatus('error');
+          }
+        }
+      } catch (err: any) {
+        console.error("Session Validation Error:", err);
+        setError("Connection issue. Please check your internet.");
+        setStatus('error');
+      }
+    };
+    
+    validateSession();
+  }, [deviceId]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAuthChecking(false);
-      if (!u) {
-        navigate('/');
-      }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, []);
 
   // QR Scanner Logic
   useEffect(() => {
@@ -110,8 +135,10 @@ export function RemoteUploadPage() {
       const sessionData = sessionDoc.data();
       const anonUid = sessionData.currentAnonUid;
 
-      if (!anonUid) {
-        throw new Error("TV is not ready. Please make sure the QR code is still visible on TV.");
+      if (!anonUid || typeof anonUid !== 'string' || anonUid.trim() === '') {
+        throw new Error(
+          "التلفاز غير جاهز. تأكد من ظهور رمز QR على الشاشة وأن الجلسة نشطة."
+        );
       }
 
       // 2. Upload to Firebase Storage with progress (New Path with anonUid)

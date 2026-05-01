@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { LogIn, CheckCircle, Loader2, Smartphone, Monitor } from 'lucide-react';
 import { auth, googleProvider, db } from './firebase';
 import { signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 export function TVLoginPage() {
   const [searchParams] = useSearchParams();
@@ -26,25 +26,38 @@ export function TVLoginPage() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      
       setStatus('linking');
-      // Write the user info to the session document
-      await setDoc(doc(db, 'tv_sessions', sessionId), {
+
+      const sessionRef = doc(db, 'tv_sessions', sessionId);
+      const sessionSnap = await getDoc(sessionRef);
+
+      if (!sessionSnap.exists()) {
+        throw new Error('الجلسة غير موجودة. يرجى مسح رمز QR من جديد.');
+      }
+
+      const sessionData = sessionSnap.data();
+
+      if (sessionData.status !== 'waiting') {
+        throw new Error('هذه الجلسة مرتبطة بالفعل أو منتهية الصلاحية.');
+      }
+
+      // Preserve currentAnonUid — do NOT overwrite it
+      await updateDoc(sessionRef, {
         uid: user.uid,
         displayName: user.displayName || 'User',
         email: user.email || '',
         photoURL: user.photoURL || '',
         linkedAt: serverTimestamp(),
         status: 'linked'
-      }, { merge: true });
+        // currentAnonUid stays untouched by updateDoc
+      });
 
       setStatus('success');
-      // After 3 seconds, redirect to home
       setTimeout(() => navigate('/'), 3000);
     } catch (error: any) {
       console.error("Linking Error:", error);
       setStatus('error');
-      setErrorMessage(error.message || 'Failed to link TV. Please try again.');
+      setErrorMessage(error.message || 'فشل الربط. يرجى المحاولة مجدداً.');
     }
   };
 

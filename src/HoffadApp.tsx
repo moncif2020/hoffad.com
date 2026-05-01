@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Cat, BookOpen, Settings, Coins, Heart, Plus, Check, ArrowRight, RefreshCw, X, Mic, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search } from 'lucide-react';
-import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
+import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search } from 'lucide-react';
+import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, downloadFullQuranAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
 import { MushafViewer } from './components/MushafViewer';
 import { CustomSelect } from './components/CustomSelect';
 import { QuranSearchInline } from './components/QuranSearchInline';
 import { GoogleGenAI } from "@google/genai";
 import { translations } from './translations';
+import { Leaderboard } from './components/Leaderboard';
+import { RecitationRecorder } from './components/RecitationRecorder';
+import { ScoreService } from './services/scoreService';
 import { diff_match_patch } from 'diff-match-patch';
 import { useAudio } from './AudioContext';
 import { useCallback } from 'react';
@@ -16,7 +19,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { db, auth, storage, googleProvider } from './firebase';
 import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, doc, setDoc, getDoc, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
-import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithCustomToken } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
 
 // --- Alignment and Result Types ---
 type SegmentType = 'correct' | 'substitution' | 'deletion' | 'insertion' | 'swapped';
@@ -43,7 +46,7 @@ const formatTime = (seconds: number) => {
 };
 
 // --- Types ---
-type View = 'garden' | 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade';
+type View = 'garden' | 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade' | 'leaderboard' | 'recorder';
 type Lesson = { id: string; title: string; text: string; type?: 'quran' | 'custom'; audioUrl?: string; lang?: string };
 type Language = string;
 
@@ -87,6 +90,15 @@ const handleFirestoreError = (error: any, operationType: any, path: string | nul
   };
   
   devError("Firestore Error:", errorInfo);
+  
+  // Show alert for debugging on production/vercel if needed (optional, but helpful for the user now)
+  if (window.location.hostname !== 'localhost' && !import.meta.env.DEV) {
+    const msg = errorInfo.error.includes('permission') 
+      ? "تنبيه: فشل الوصول للبيانات (مشكلة في الصلاحيات). تأكد من إعدادات Firestore Rules." 
+      : `خطأ في قاعدة البيانات: ${errorInfo.error}`;
+    console.warn("UI Alerting via handleFirestoreError:", msg);
+  }
+
   throw new Error(JSON.stringify(errorInfo));
 };
 
@@ -422,6 +434,9 @@ function ListenScreen({ lang }: { lang: Language }) {
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadingSurahName, setDownloadingSurahName] = useState('');
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const downloadAbortController = useRef<AbortController | null>(null);
   const [isTextSearchOpen, setIsTextSearchOpen] = useState(false);
 
   // Check if current range is already downloaded
@@ -464,21 +479,73 @@ function ListenScreen({ lang }: { lang: Language }) {
   const selectedSurahData = surahs.find(s => s.number === selectedSurah);
   const maxAyahs = selectedSurahData ? selectedSurahData.numberOfAyahs : 1;
 
-  const handleDownload = async () => {
-    setIsCurrentRangeDownloaded(true);
+  const handleDownloadSurah = async () => {
+    if (selectedSurah === null) return;
     setIsDownloading(true);
     setDownloadProgress(0);
+    setShowDownloadModal(false);
+    downloadAbortController.current = new AbortController();
+    
     try {
-      await downloadSurahAudio(selectedSurah, fromAyah, toAyah, reciter, (progress) => {
-        setDownloadProgress(progress);
-      });
+      const surahData = surahs.find(s => s.number === selectedSurah);
+      setDownloadingSurahName(surahData?.name || '');
+      
+      await downloadSurahAudio(
+        selectedSurah, 
+        1, 
+        surahData?.numberOfAyahs || 1, 
+        reciter, 
+        (progress) => setDownloadProgress(progress),
+        downloadAbortController.current.signal
+      );
+      
       setIsCurrentRangeDownloaded(true);
       alert(t[lang].downloadComplete);
-    } catch (err) {
-      console.error(err);
-      alert(t[lang].downloadError);
+    } catch (err: any) {
+      if (err.message !== 'Aborted') {
+        console.error(err);
+        alert(t[lang].downloadError);
+      }
     } finally {
       setIsDownloading(false);
+      setDownloadingSurahName('');
+    }
+  };
+
+  const handleDownloadFullQuran = async () => {
+    if (!confirm(t[lang].downloadFullWarning)) return;
+    
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setShowDownloadModal(false);
+    downloadAbortController.current = new AbortController();
+    
+    try {
+      await downloadFullQuranAudio(
+        reciter,
+        (progress, surahName) => {
+          setDownloadProgress(progress);
+          setDownloadingSurahName(surahName);
+        },
+        downloadAbortController.current.signal
+      );
+      
+      setIsCurrentRangeDownloaded(true);
+      alert(t[lang].downloadComplete);
+    } catch (err: any) {
+      if (err.message !== 'Aborted') {
+        console.error(err);
+        alert(t[lang].downloadError);
+      }
+    } finally {
+      setIsDownloading(false);
+      setDownloadingSurahName('');
+    }
+  };
+
+  const cancelDownload = () => {
+    if (downloadAbortController.current) {
+      downloadAbortController.current.abort();
     }
   };
 
@@ -809,35 +876,114 @@ function ListenScreen({ lang }: { lang: Language }) {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <button 
-                onClick={startListening}
-                disabled={isLoading || selectedSurah === null}
-                className="flex-[2] bg-emerald-500 text-white font-bold py-5 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-3 text-xl"
-              >
-                {isLoading ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={24} />}
-                <span>{t[lang].startListening}</span>
-              </button>
-              {(!isCurrentRangeDownloaded || isDownloading) && (
+            <div className="flex flex-col gap-4 pt-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <button 
-                  onClick={handleDownload}
-                  disabled={isDownloading || isLoading}
-                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-5 rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-200 focus:ring-4 focus:ring-slate-300 outline-none transition-all text-xl"
+                  onClick={startListening}
+                  disabled={isLoading || selectedSurah === null}
+                  className="flex-[2] bg-emerald-500 text-white font-bold py-5 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-3 text-xl"
                 >
-                  {isDownloading ? (
-                    <>
-                      <Loader2 className="animate-spin" />
-                      {t[lang].downloading.replace('{progress}', String(downloadProgress))}
-                    </>
-                  ) : (
-                    <>
-                      <Download size={24} />
-                      {t[lang].downloadOffline}
-                    </>
-                  )}
+                  {isLoading ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={24} />}
+                  <span>{t[lang].startListening}</span>
+                </button>
+              </div>
+
+              {isDownloading ? (
+                <div className="bg-emerald-50 p-6 rounded-2xl border-2 border-emerald-100">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex flex-col">
+                      <span className="text-emerald-700 font-bold flex items-center gap-2">
+                        <Loader2 className="animate-spin" size={20} />
+                        {downloadingSurahName ? t[lang].downloadingSurah.replace('{surah}', downloadingSurahName).replace('{progress}', String(downloadProgress)) : t[lang].downloading.replace('{progress}', String(downloadProgress))}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={cancelDownload}
+                      className="text-red-500 hover:text-red-700 font-bold text-sm"
+                    >
+                      {t[lang].downloadCancel}
+                    </button>
+                  </div>
+                  <div className="w-full bg-emerald-200 rounded-full h-3 overflow-hidden">
+                    <motion.div 
+                      className="bg-emerald-500 h-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowDownloadModal(true)}
+                  disabled={isLoading || selectedSurah === null}
+                  className="w-full bg-slate-100 text-slate-700 font-bold py-5 rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-200 focus:ring-4 focus:ring-slate-300 outline-none transition-all text-xl"
+                >
+                  <Download size={24} />
+                  <span>{t[lang].downloadOffline}</span>
                 </button>
               )}
             </div>
+
+            {/* Download Options Modal */}
+            <AnimatePresence>
+              {showDownloadModal && (
+                <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden"
+                  >
+                    <div className="p-8">
+                      <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                          <Download className="text-emerald-500" size={28} />
+                          {t[lang].downloadOffline}
+                        </h3>
+                        <button 
+                          onClick={() => setShowDownloadModal(false)}
+                          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        >
+                          <X size={24} className="text-slate-400" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <button 
+                          onClick={handleDownloadSurah}
+                          className="w-full p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-100 rounded-3xl text-right transition-all group flex flex-col gap-1"
+                        >
+                          <span className="font-black text-emerald-900 text-lg group-hover:translate-x-1 transition-transform inline-block">
+                            {t[lang].downloadSurahOnly}
+                          </span>
+                          <span className="text-emerald-600 text-sm opacity-80">
+                            {selectedSurahData?.name} ({selectedSurahData?.numberOfAyahs} {t[lang].ayah})
+                          </span>
+                        </button>
+
+                        <button 
+                          onClick={handleDownloadFullQuran}
+                          className="w-full p-6 bg-slate-50 hover:bg-slate-100 border-2 border-slate-100 rounded-3xl text-right transition-all group flex flex-col gap-1"
+                        >
+                          <span className="font-black text-slate-900 dark:text-white text-lg group-hover:translate-x-1 transition-transform inline-block">
+                            {t[lang].downloadFullQuran}
+                          </span>
+                          <span className="text-slate-500 text-sm opacity-80">
+                            114 {t[lang].chooseSurah} (6236 {t[lang].ayah})
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+                        <p className="text-slate-400 text-sm text-center italic">
+                          {lang === 'ar' ? 'سيتم حفظ التلاوة بصوت القارئ المختار حالياً' : 'Recitation will be saved for the currently selected reciter'}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
             {isTextSearchOpen && (
               <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4" dir="rtl">
                 <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
@@ -992,6 +1138,7 @@ export default function App() {
   const [isPremium, setIsPremium] = useState(false);
   const [coins, setCoins] = useState(0);
   const [xp, setXp] = useState(0);
+  const [totalScore, setTotalScore] = useState(0);
   const [donations, setDonations] = useState(0);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
@@ -1010,6 +1157,30 @@ export default function App() {
     return newId;
   });
 
+  // Sync Device Session to Firestore
+  useEffect(() => {
+    // We sync the ACTUAL firebase identity (auth.currentUser) 
+    // This is what the TV uses for listening to uploads
+    if (!auth.currentUser || !deviceId || !isRemoteModalOpen) return;
+    
+    const syncSession = async () => {
+      try {
+        await setDoc(doc(db, 'tv_sessions', deviceId), {
+          deviceId,
+          currentAnonUid: auth.currentUser.uid,
+          updatedAt: serverTimestamp(),
+          status: 'active'
+        }, { merge: true });
+        devLog("Device session synced:", deviceId);
+      } catch (err: any) {
+        // Permission error might happen if not owner, just log it
+        console.warn("Session sync warning:", err.message);
+      }
+    };
+    
+    syncSession();
+  }, [auth.currentUser, deviceId, isRemoteModalOpen]);
+
   // Real-time Data Listeners
   useEffect(() => {
     // Only listen if we have a real Firebase user (not a simulated session)
@@ -1025,28 +1196,44 @@ export default function App() {
     }
 
     // 1. Profile Listener
+    console.log(`[Firebase] Setting up profile listener for: ${user.uid}`);
+    
     const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        devLog("Profile Loaded:", data);
         if (data.xp !== undefined) setXp(data.xp);
         if (data.coins !== undefined) setCoins(data.coins);
         if (data.donations !== undefined) setDonations(data.donations);
+        if (data.totalScore !== undefined) setTotalScore(data.totalScore);
       } else {
-        // Initialize profile if not exists - use merge safely
+        // Initialize profile if not exists
+        console.log("[Firebase] Profile does not exist, initializing with defaults...");
         setDoc(doc(db, 'users', user.uid), {
-          xp: 10, // Starting bonus
+          displayName: user.displayName || 'حافظ مجهول',
+          photoURL: user.photoURL || '',
+          xp: 10,
           coins: 10,
           donations: 0,
+          totalScore: 0,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         }, { merge: true }).catch(err => {
-          console.error("Profile Init Error:", err);
-          handleFirestoreError(err, 'write', `users/${user.uid}`);
+          if (err.code === 'permission-denied') {
+             // If merge with createdAt fails (due to rule), it means doc exists.
+             // Try updating only fields that aren't immutable.
+             setDoc(doc(db, 'users', user.uid), {
+               updatedAt: serverTimestamp()
+             }, { merge: true }).catch(e => console.error("Retry Init Error:", e));
+          } else {
+            console.error("Profile Init Error:", err);
+            handleFirestoreError(err, 'write', `users/${user.uid}`);
+          }
         });
       }
     }, (error) => {
       console.error("Profile Listener Error:", error);
-      handleFirestoreError(error, 'list', `users/${user.uid}`);
+      handleFirestoreError(error, 'get', `users/${user.uid}`);
     });
 
     // 2. Lessons Listener
@@ -1088,6 +1275,15 @@ export default function App() {
   // Auth Listener
   useEffect(() => {
     const checkSession = async () => {
+      // 1. Ensure we have a Firebase identity first for TV/Sync features
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (err) {
+          console.warn("Silent anonymous login failed", err);
+        }
+      }
+
       const customToken = localStorage.getItem('hoffad_custom_token');
       if (customToken) {
         try {
@@ -1134,7 +1330,11 @@ export default function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error("Login Error:", error);
-      if (error.code === 'auth/internal-error' || error.code === 'auth/network-request-failed') {
+      if (error.code === 'auth/unauthorized-domain') {
+        alert(lang.startsWith('ar') 
+          ? "خطأ: النطاق غير مصرح به. يرجى إضافة 'hoffad.vercel.app' إلى قائمة 'Authorized domains' في إعدادات (Authentication) داخل Firebase Console." 
+          : "Error: Unauthorized domain. Please add 'hoffad.vercel.app' to the 'Authorized domains' list in the Firebase Console Authentication settings.");
+      } else if (error.code === 'auth/internal-error' || error.code === 'auth/network-request-failed') {
         alert(lang.startsWith('ar') 
           ? "خطأ داخلي في تسجيل الدخول. يرجى التأكد من السماح بالنوافذ المنبثقة وإضافة النطاق الحالي إلى قائمة النطاقات المصرح بها (Authorized Domains) في Firebase Console." 
           : "Internal login error. Please ensure popups are allowed and the current domain is added to the Authorized Domains in Firebase Console.");
@@ -1355,16 +1555,19 @@ export default function App() {
     }
   };
 
-  const updateProfile = async (data: Partial<{ xp: number, coins: number, donations: number }>) => {
+  const updateProfile = async (data: Partial<{ xp: number, coins: number, donations: number, totalScore: number }>) => {
     if (!user) return;
     try {
+      console.log("[Firebase] Updating profile...", data);
       const profileRef = doc(db, 'users', user.uid);
       await setDoc(profileRef, {
         ...data,
         updatedAt: serverTimestamp()
       }, { merge: true });
+      devLog("Profile Update Success");
     } catch (err) {
       console.error("Error updating profile:", err);
+      handleFirestoreError(err, 'write', `users/${user.uid}`);
     }
   };
 
@@ -1383,12 +1586,18 @@ export default function App() {
     setView('game');
   };
 
-  const handleGameComplete = (earnedCoins: number) => {
-    const newCoins = coins + earnedCoins;
-    const newXp = xp + earnedCoins;
+  const handleGameComplete = (earnedPoints: number) => {
+    const newCoins = coins + earnedPoints;
+    const newXp = xp + earnedPoints;
+    const newTotalScore = totalScore + earnedPoints;
     setCoins(newCoins);
-    setXp(newXp); // XP grows with effort
-    updateProfile({ coins: newCoins, xp: newXp });
+    setXp(newXp);
+    setTotalScore(newTotalScore);
+    updateProfile({ 
+      coins: newCoins, 
+      xp: newXp,
+      totalScore: newTotalScore 
+    });
     setView('garden');
     setActiveLesson(null);
   };
@@ -1670,6 +1879,22 @@ export default function App() {
                   <TreePine size={22} className={view === 'garden' ? 'text-emerald-600' : 'text-emerald-500'} />
                   <span>{t[lang].garden}</span>
                 </button>
+
+                <button 
+                  onClick={() => { setView('leaderboard'); setIsSidebarOpen(false); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'leaderboard' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Trophy size={22} className={view === 'leaderboard' ? 'text-emerald-600' : 'text-emerald-500'} />
+                  <span>{t[lang].leaderboard}</span>
+                </button>
+
+                <button 
+                  onClick={() => { setView('recorder'); setIsSidebarOpen(false); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'recorder' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Mic size={22} className={view === 'recorder' ? 'text-emerald-600' : 'text-emerald-500'} />
+                  <span>{t[lang].recitationRecorder}</span>
+                </button>
                 
                 <button 
                   onClick={() => { setView('parent'); setIsSidebarOpen(false); }}
@@ -1783,6 +2008,16 @@ export default function App() {
           {view === 'upgrade' && (
             <motion.div key="upgrade" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
               <UpgradeScreen lang={lang} onUpgrade={() => { setIsPremium(true); setView('study'); }} />
+            </motion.div>
+          )}
+          {view === 'leaderboard' && (
+            <motion.div key="leaderboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+              <Leaderboard onBack={() => setView('garden')} lang={lang} t={currentT} />
+            </motion.div>
+          )}
+          {view === 'recorder' && (
+            <motion.div key="recorder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+              <RecitationRecorder onBack={() => setView('garden')} lang={lang} t={currentT} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2148,9 +2383,9 @@ function GameScreen({ lesson, onComplete, onCancel, lang }: { lesson: Lesson, on
 
       {/* Render Active Game Mode */}
       <div className="flex-1 flex flex-col">
-        {mode === 'blanks' && <BlanksGame lesson={lesson} onSuccess={() => handleSuccess(30)} lang={lang} />}
-        {mode === 'order' && <OrderGame lesson={lesson} onSuccess={() => handleSuccess(40)} lang={lang} />}
-        {mode === 'recite' && <ReciteGame lesson={lesson} onSuccess={() => handleSuccess(50)} lang={lang} />}
+        {mode === 'blanks' && <BlanksGame lesson={lesson} onSuccess={() => handleSuccess(ScoreService.calculatePoints(lesson.text, 'blanks'))} lang={lang} />}
+        {mode === 'order' && <OrderGame lesson={lesson} onSuccess={() => handleSuccess(ScoreService.calculatePoints(lesson.text, 'order'))} lang={lang} />}
+        {mode === 'recite' && <ReciteGame lesson={lesson} onSuccess={() => handleSuccess(ScoreService.calculatePoints(lesson.text, 'recite'))} lang={lang} />}
       </div>
     </motion.div>
   );
