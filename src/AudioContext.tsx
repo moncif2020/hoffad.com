@@ -32,8 +32,26 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     playlistRef.current = playlist;
   }, [playlist]);
 
-  const devLog = (...args: any[]) => { if (import.meta.env.DEV) console.log(...args); };
-  const devError = (...args: any[]) => { if (import.meta.env.DEV) console.error(...args); };
+  const devLog = (...args: any[]) => { 
+    if (import.meta.env.DEV) {
+      const sanitizedArgs = args.map(arg => {
+        if (arg instanceof Error) return arg.message;
+        if (arg && typeof arg === 'object' && 'nativeEvent' in arg) return 'DOM Event';
+        return arg;
+      });
+      console.log(...sanitizedArgs);
+    }
+  };
+  const devError = (...args: any[]) => { 
+    if (import.meta.env.DEV) {
+      const sanitizedArgs = args.map(arg => {
+        if (arg instanceof Error) return arg.message;
+        if (arg && typeof arg === 'object' && 'nativeEvent' in arg) return 'DOM Event';
+        return arg;
+      });
+      console.error(...sanitizedArgs);
+    }
+  };
 
   const blobUrlRef = useRef<string | null>(null);
   const playTrack = async (index: number) => {

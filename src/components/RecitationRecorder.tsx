@@ -137,7 +137,7 @@ export const RecitationRecorder: React.FC<RecitationRecorderProps> = ({ onBack, 
       setAudioUrl(null);
       setAudioBlob(null);
     } catch (err) {
-      console.error("Error accessing microphone:", err);
+      console.error("Error accessing microphone:", (err as Error).message || "Unknown error");
       alert(lang === 'ar' ? 'يرجى السماح بالوصول إلى الميكروفون' : 'Please allow microphone access');
     }
   };
@@ -158,7 +158,11 @@ export const RecitationRecorder: React.FC<RecitationRecorderProps> = ({ onBack, 
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(err => {
+        console.error("Playback failed:", (err as Error).message || "Unknown error");
+        alert(lang === 'ar' ? 'فشل تشغيل الصوت المسجل' : 'Failed to play recorded audio');
+        setIsPlaying(false);
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -189,7 +193,7 @@ export const RecitationRecorder: React.FC<RecitationRecorderProps> = ({ onBack, 
         link.click();
       }
     } catch (err) {
-      console.warn("Sharing failed:", err);
+      console.warn("Sharing failed:", (err as Error).message || "Unknown error");
     }
   };
 

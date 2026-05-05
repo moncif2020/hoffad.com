@@ -5,7 +5,7 @@ import { Upload, Mic, Video, Check, Loader2, X, AlertCircle, Camera, QrCode } fr
 import { db, storage, auth, googleProvider } from './firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { signInAnonymously, signInWithPopup, onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export function RemoteUploadPage() {

@@ -17,9 +17,9 @@ import { useCallback } from 'react';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { db, auth, storage, googleProvider } from './firebase';
-import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, doc, setDoc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, doc, setDoc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
-import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithCustomToken } from 'firebase/auth';
 
 // --- Alignment and Result Types ---
 type SegmentType = 'correct' | 'substitution' | 'deletion' | 'insertion' | 'swapped';
@@ -78,7 +78,7 @@ const handleFirestoreError = (error: any, operationType: any, path: string | nul
     userId: 'unauthenticated',
     email: '',
     emailVerified: false,
-    isAnonymous: true,
+    isAnonymous: false,
     providerInfo: []
   };
 
@@ -549,10 +549,11 @@ function ListenScreen({ lang }: { lang: Language }) {
     }
   };
 
-  const startListening = async (overrideSurah?: number, overrideFrom?: number, overrideTo?: number) => {
-    const sId = overrideSurah !== undefined ? overrideSurah : selectedSurah;
-    const fId = overrideFrom !== undefined ? overrideFrom : fromAyah;
-    const tId = overrideTo !== undefined ? overrideTo : toAyah;
+  const startListening = async (overrideSurah?: any, overrideFrom?: number, overrideTo?: number) => {
+    // If the first argument is a React Event, ignore it
+    const sId = (overrideSurah !== undefined && typeof overrideSurah === 'number') ? overrideSurah : selectedSurah;
+    const fId = (overrideFrom !== undefined && typeof overrideFrom === 'number') ? overrideFrom : fromAyah;
+    const tId = (overrideTo !== undefined && typeof overrideTo === 'number') ? overrideTo : toAyah;
 
     if (listenMode === 'quran') {
       if (sId === null) {
@@ -879,7 +880,7 @@ function ListenScreen({ lang }: { lang: Language }) {
             <div className="flex flex-col gap-4 pt-4">
               <div className="flex flex-col sm:flex-row gap-4">
                 <button 
-                  onClick={startListening}
+                  onClick={() => startListening()}
                   disabled={isLoading || selectedSurah === null}
                   className="flex-[2] bg-emerald-500 text-white font-bold py-5 rounded-2xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-3 text-xl"
                 >
@@ -1002,6 +1003,7 @@ function ListenScreen({ lang }: { lang: Language }) {
                     <QuranSearchInline
                       lang={lang}
                       onSelect={(surahNum, ayahNum, action) => {
+                        setListenMode('quran');
                         setSelectedSurah(surahNum);
                         setFromAyah(ayahNum);
                         const surahObj = QURAN_SURAHS.find(s => s.number === surahNum);
@@ -1132,6 +1134,19 @@ function ListenScreen({ lang }: { lang: Language }) {
 // --- Main App Component ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userCountry, setUserCountry] = useState<string | null>(null);
+
+  // Fetch country once
+  useEffect(() => {
+    fetch('https://ipapi.co/json/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.country_code) {
+          setUserCountry(data.country_code);
+        }
+      })
+      .catch(err => console.warn("Country detection failed:", err));
+  }, []);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [view, setView] = useState<View>('study');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -1157,10 +1172,10 @@ export default function App() {
     return newId;
   });
 
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // Sync Device Session to Firestore
   useEffect(() => {
-    // We sync the ACTUAL firebase identity (auth.currentUser) 
-    // This is what the TV uses for listening to uploads
     if (!auth.currentUser || !deviceId || !isRemoteModalOpen) return;
     
     const syncSession = async () => {
@@ -1171,9 +1186,7 @@ export default function App() {
           updatedAt: serverTimestamp(),
           status: 'active'
         }, { merge: true });
-        devLog("Device session synced:", deviceId);
       } catch (err: any) {
-        // Permission error might happen if not owner, just log it
         console.warn("Session sync warning:", err.message);
       }
     };
@@ -1183,35 +1196,43 @@ export default function App() {
 
   // Real-time Data Listeners
   useEffect(() => {
-    // Only listen if we have a real Firebase user (not a simulated session)
-    // and make sure we don't listen with a custom session UID that might not be in auth yet
-    if (!user || !auth.currentUser || user.uid !== auth.currentUser.uid) {
-      if (!user) {
-        setLessons([]);
-        setXp(0);
-        setCoins(0);
-        setDonations(0);
-      }
+    // CRITICAL: Only start listeners if we have an AUTHENTICATED Firebase user.
+    if (!auth.currentUser) {
+      setLessons([]);
+      setXp(0);
+      setCoins(0);
+      setDonations(0);
       return;
     }
 
-    // 1. Profile Listener
-    console.log(`[Firebase] Setting up profile listener for: ${user.uid}`);
+    const currentUid = auth.currentUser.uid;
     
-    const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+    // 1. Profile Listener
+    const profileUnsubscribe = onSnapshot(doc(db, 'users', currentUid), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        devLog("Profile Loaded:", data);
         if (data.xp !== undefined) setXp(data.xp);
         if (data.coins !== undefined) setCoins(data.coins);
         if (data.donations !== undefined) setDonations(data.donations);
         if (data.totalScore !== undefined) setTotalScore(data.totalScore);
+
+        const needsNameUpdate = (data.displayName === 'حافظ مجهول' || !data.displayName) && auth.currentUser?.displayName;
+        const needsPhotoUpdate = (!data.photoURL || data.photoURL === '') && auth.currentUser?.photoURL;
+        const needsCountryUpdate = !data.countryCode && userCountry;
+
+        if (needsNameUpdate || needsPhotoUpdate || needsCountryUpdate) {
+          updateDoc(doc(db, 'users', currentUid), {
+            ...(needsNameUpdate ? { displayName: auth.currentUser?.displayName } : {}),
+            ...(needsPhotoUpdate ? { photoURL: auth.currentUser?.photoURL } : {}),
+            ...(needsCountryUpdate ? { countryCode: userCountry } : {}),
+            updatedAt: serverTimestamp()
+          }).catch(e => console.warn("Identity sync deferred:", e.message));
+        }
       } else {
-        // Initialize profile if not exists
-        console.log("[Firebase] Profile does not exist, initializing with defaults...");
-        setDoc(doc(db, 'users', user.uid), {
-          displayName: user.displayName || 'حافظ مجهول',
-          photoURL: user.photoURL || '',
+        setDoc(doc(db, 'users', currentUid), {
+          displayName: auth.currentUser?.displayName || 'حافظ مجهول',
+          photoURL: auth.currentUser?.photoURL || '',
+          countryCode: userCountry || '',
           xp: 10,
           coins: 10,
           donations: 0,
@@ -1219,26 +1240,16 @@ export default function App() {
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         }, { merge: true }).catch(err => {
-          if (err.code === 'permission-denied') {
-             // If merge with createdAt fails (due to rule), it means doc exists.
-             // Try updating only fields that aren't immutable.
-             setDoc(doc(db, 'users', user.uid), {
-               updatedAt: serverTimestamp()
-             }, { merge: true }).catch(e => console.error("Retry Init Error:", e));
-          } else {
-            console.error("Profile Init Error:", err);
-            handleFirestoreError(err, 'write', `users/${user.uid}`);
-          }
+          console.warn("Profile init deferred:", err.message);
         });
       }
     }, (error) => {
-      console.error("Profile Listener Error:", error);
-      handleFirestoreError(error, 'get', `users/${user.uid}`);
+      console.warn("Profile Listener Warning:", error.message);
     });
 
     // 2. Lessons Listener
     const lessonsQuery = query(
-      collection(db, 'users', user.uid, 'lessons'),
+      collection(db, 'users', currentUid, 'lessons'),
       orderBy('createdAt', 'desc')
     );
     const lessonsUnsubscribe = onSnapshot(lessonsQuery, (snapshot) => {
@@ -1248,15 +1259,14 @@ export default function App() {
       })) as Lesson[];
       setLessons(fetchedLessons);
     }, (error) => {
-      console.error("Lessons Listener Error:", error);
-      handleFirestoreError(error, 'list', `users/${user.uid}/lessons`);
+      console.warn("Lessons Listener Warning:", error.message);
     });
 
     return () => {
       profileUnsubscribe();
       lessonsUnsubscribe();
     };
-  }, [user]);
+  }, [auth.currentUser?.uid, userCountry]);
 
   const [uploadNotification, setUploadNotification] = useState<string | null>(null);
   
@@ -1274,21 +1284,15 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    const checkSession = async () => {
-      // 1. Ensure we have a Firebase identity first for TV/Sync features
-      if (!auth.currentUser) {
-        try {
-          await signInAnonymously(auth);
-        } catch (err) {
-          console.warn("Silent anonymous login failed", err);
-        }
-      }
+    let isMounted = true;
 
+    const checkSession = async () => {
+      // 1. Check for custom token (highest priority)
       const customToken = localStorage.getItem('hoffad_custom_token');
       if (customToken) {
         try {
           await signInWithCustomToken(auth, customToken);
-          localStorage.removeItem('hoffad_custom_token'); // Use it once
+          localStorage.removeItem('hoffad_custom_token');
           return;
         } catch (err) {
           console.error("Custom token login failed:", err);
@@ -1296,25 +1300,13 @@ export default function App() {
         }
       }
 
-      const sessionUid = localStorage.getItem('hoffad_session_uid');
-      if (sessionUid) {
-        const sessionName = localStorage.getItem('hoffad_session_name') || 'User';
-        const sessionPhoto = localStorage.getItem('hoffad_session_photo') || '';
-        setUser({
-          uid: sessionUid,
-          displayName: sessionName,
-          photoURL: sessionPhoto,
-          email: '',
-        } as any);
-        setIsAuthChecking(false);
-      } else {
-        setUser(null);
-        setIsAuthChecking(false);
-        navigate('/');
-      }
+      // No more anonymous login. Just finish checking.
+      if (isMounted) setIsAuthChecking(false);
     };
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (!isMounted) return;
+      
       if (u) {
         setUser(u);
         setIsAuthChecking(false);
@@ -1322,7 +1314,11 @@ export default function App() {
         checkSession();
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [navigate]);
 
   const handleLogin = async () => {
@@ -1429,7 +1425,7 @@ export default function App() {
         }
       });
     }, (error) => {
-      console.error("Firestore Listener Error:", error);
+      console.warn("Firestore Listener Warning (Uploads):", error);
     });
     return () => unsubscribe();
   }, [deviceId, lang, user]);
@@ -1526,7 +1522,47 @@ export default function App() {
   if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
+          <p className="text-slate-400 font-bold animate-pulse">{lang === 'ar' ? 'جاري التحقق...' : 'Verifying...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+         <motion.div 
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           className="bg-white p-8 rounded-[40px] shadow-2xl shadow-emerald-100 max-w-sm w-full border border-slate-100"
+         >
+           <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+             <img src="/logo.svg" alt="Logo" className="w-12 h-12" />
+           </div>
+           <h2 className="text-3xl font-black text-slate-800 mb-2">
+             {lang === 'ar' ? 'أهلاً بك في حُفّاظ' : 'Welcome to Hoffad'}
+           </h2>
+           <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+             {lang === 'ar' 
+               ? 'يرجى تسجيل الدخول بحساب Google لحفظ تقدمك والتنافس مع الآخرين.' 
+               : 'Please login with your Google account to save progress and compete with others.'}
+           </p>
+           
+           <button 
+             onClick={handleLogin}
+             className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95"
+           >
+             <LogIn size={24} />
+             <span>{lang === 'ar' ? 'تسجيل الدخول عبر Google' : 'Sign in with Google'}</span>
+           </button>
+           
+           <div className="mt-8 flex items-center justify-center gap-2 text-slate-400 text-xs">
+             <ShieldCheck size={14} />
+             <span>{lang === 'ar' ? 'تسجيل آمن عبر Google' : 'Secure sign in via Google'}</span>
+           </div>
+         </motion.div>
       </div>
     );
   }
@@ -1895,7 +1931,7 @@ export default function App() {
                   <Mic size={22} className={view === 'recorder' ? 'text-emerald-600' : 'text-emerald-500'} />
                   <span>{t[lang].recitationRecorder}</span>
                 </button>
-                
+
                 <button 
                   onClick={() => { setView('parent'); setIsSidebarOpen(false); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'parent' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -2198,8 +2234,8 @@ function GardenScreen({ xp, coins, donations, onDonate, onStudyClick, lang }: { 
       </div>
 
       {/* Section 2: The Others (Charity Shop) */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm w-full lg:flex-1 border border-slate-100">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white p-6 rounded-3xl shadow-sm w-full lg:flex-1 border border-slate-100 flex flex-col gap-6">
+        <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <HeartHandshake className="text-rose-500" />
             {t[lang].fruitsOfGiving}

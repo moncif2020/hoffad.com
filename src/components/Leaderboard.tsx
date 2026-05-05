@@ -12,6 +12,7 @@ interface LeaderboardUser {
   coins: number;
   donations: number;
   totalScore: number;
+  countryCode?: string;
 }
 
 interface LeaderboardProps {
@@ -30,13 +31,20 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      // Regardless of auth, we fetch the leaderboard
-      fetchLeaderboard();
+      if (user) {
+        fetchLeaderboard();
+      } else {
+        setLoading(false);
+      }
     });
     return () => unsubscribe();
   }, [activeTab]);
 
   const fetchLeaderboard = async () => {
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const q = query(
@@ -60,6 +68,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
           coins: data.coins || 0,
           donations: data.donations || 0,
           totalScore: data.totalScore || 0,
+          countryCode: data.countryCode || '',
         });
         
         if (auth.currentUser && doc.id === auth.currentUser.uid) {
@@ -86,6 +95,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
     if (index === 1) return <Medal className="w-6 h-6 text-slate-300" />;
     if (index === 2) return <Medal className="w-6 h-6 text-amber-600" />;
     return <span className="text-gray-400 font-bold">{index + 1}</span>;
+  };
+
+  const getFlagEmoji = (countryCode?: string) => {
+    if (!countryCode || countryCode === '') return '';
+    try {
+      const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt(0));
+      return String.fromCodePoint(...codePoints);
+    } catch (e) {
+      return '';
+    }
   };
 
   const getMetricIcon = () => {
@@ -200,8 +222,13 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
                     </div>
 
                     <div>
-                      <h3 className="font-bold text-emerald-900 truncate max-w-[150px] md:max-w-[250px]">
+                      <h3 className="font-bold text-emerald-900 truncate max-w-[150px] md:max-w-[250px] flex items-center gap-2">
                         {user.displayName}
+                        {user.countryCode && (
+                          <span className="text-lg" title={user.countryCode}>
+                            {getFlagEmoji(user.countryCode)}
+                          </span>
+                        )}
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                         {getMetricIcon()}

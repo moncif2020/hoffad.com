@@ -10,7 +10,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { landingTranslations, languages } from './landing-translations';
 import { auth, googleProvider, db } from './firebase';
 import { safeJson } from './lib/quran';
-import { signInWithPopup, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, deleteDoc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export function LandingPage() {
@@ -107,16 +107,6 @@ export function LandingPage() {
   };
 
   const handleTVLogin = async () => {
-    // 1. Sign in anonymously to get a real Firebase identity for the TV
-    let anonymousUid = '';
-    try {
-      const anonResult = await signInAnonymously(auth);
-      anonymousUid = anonResult.user.uid;
-    } catch (err) {
-      devError("Anonymous login failed:", err);
-      // Fallback is still possible but rules will be stricter
-    }
-
     const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     setTvSessionId(sessionId);
     setIsTVModalOpen(true);
@@ -126,7 +116,7 @@ export function LandingPage() {
       await setDoc(doc(db, 'tv_sessions', sessionId), {
         deviceId: deviceId,
         status: 'waiting',
-        currentAnonUid: anonymousUid, // Store the TV's temp identity
+        currentAnonUid: deviceId, // Use deviceId as fallback identity if anon is disabled
         createdAt: serverTimestamp()
       });
     } catch (err) {
