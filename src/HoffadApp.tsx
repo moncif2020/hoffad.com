@@ -1940,6 +1940,14 @@ export default function App() {
                   <span>{t[lang].settings}</span>
                 </button>
 
+                <button 
+                  onClick={() => { navigate('/upload'); setIsSidebarOpen(false); }}
+                  className="flex items-center gap-3 p-3 rounded-xl transition-all w-full text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <Camera size={22} className="text-emerald-500" />
+                  <span>{t[lang].scanQR}</span>
+                </button>
+
                 {!isPremium && (
                   <button 
                     onClick={() => { setView('upgrade'); setIsSidebarOpen(false); }}

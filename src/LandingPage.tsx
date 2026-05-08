@@ -117,6 +117,7 @@ export function LandingPage() {
         deviceId: deviceId,
         status: 'waiting',
         currentAnonUid: deviceId, // Use deviceId as fallback identity if anon is disabled
+        updatedAt: serverTimestamp(),
         createdAt: serverTimestamp()
       });
     } catch (err) {

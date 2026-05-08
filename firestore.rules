@@ -53,7 +53,6 @@ service cloud.firestore {
              data.status in ['waiting', 'linked', 'active'] &&
              isValidId(data.deviceId) &&
              data.updatedAt is timestamp &&
-             data.updatedAt <= request.time &&
              (data.get('currentAnonUid', '') is string);
     }
 

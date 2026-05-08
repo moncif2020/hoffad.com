@@ -70,9 +70,14 @@ export function RemoteUploadPage() {
         try {
           const url = new URL(decodedText);
           const dev = url.searchParams.get('dev');
+          const sessionId = url.searchParams.get('sessionId');
+
           if (dev) {
             scanner.clear();
             setSearchParams({ dev });
+          } else if (sessionId) {
+            scanner.clear();
+            navigate(`/tv-login?sessionId=${sessionId}`);
           } else {
             setError('Invalid QR Code. Please scan the code from your TV.');
           }
