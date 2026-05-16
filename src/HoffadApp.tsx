@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search } from 'lucide-react';
+import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search } from 'lucide-react';
 import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, downloadFullQuranAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
 import { MushafViewer } from './components/MushafViewer';
 import { CustomSelect } from './components/CustomSelect';
@@ -46,7 +46,7 @@ const formatTime = (seconds: number) => {
 };
 
 // --- Types ---
-type View = 'garden' | 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade' | 'leaderboard' | 'recorder';
+type View = 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade' | 'leaderboard' | 'recorder';
 type Lesson = { id: string; title: string; text: string; type?: 'quran' | 'custom'; audioUrl?: string; lang?: string };
 type Language = string;
 
@@ -145,30 +145,27 @@ const normalizeArabic = (text: string) => {
   if (!text) return '';
   
   // 1. Remove all Quranic marks, diacritics, and small Uthmani letters
-  // This covers: Harakat, Superscript Alif (\u0670), Small Signs (\u06D6-\u06ED), 
-  // Small Waw (\u06E5), Small Yaa (\u06E6), and Maddah marks.
   let normalized = text
-    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "") // Added \u0640 (Kashida)
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "") 
     
-  // 2. Unicode Normalization (NFD) + Strip remaining marks (\p{M})
+  // 2. Unicode Normalization
   normalized = normalized.normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .normalize('NFC')
+    .replace(/[\u0300-\u036f]/g, "")
+    .normalize('NFC');
     
-  // 3. Unify skeletal letters to their simplest forms
+  // 3. Unify skeletal letters and remove Quranic ornaments/digits for comparison
   return normalized
-    .replace(/[أإآٱء]/g, "ا") // Unify all Alif forms and Hamzas
+    .replace(/[أإآٱء]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/[ىي]/g, "ي")
     .replace(/ؤ/g, "و")
     .replace(/ئ/g, "ي")
-    // 4. Handle Uthmani-specific skeletal spelling variants
     .replace(/صلوه/g, "صلاه")
     .replace(/زكوه/g, "زكاه")
     .replace(/حيوة/g, "حياه")
     .replace(/نجوة/g, "نجاه")
     .replace(/ربوا/g, "ربا")
-    // 5. Final cleanup of any non-Arabic artifacts
+    .replace(/[\u060C\u061B\u061F\u06D4۝٠-٩0-9]/g, "") 
     .replace(/[^\u0600-\u06FF\s]/g, "") 
     .trim()
     .replace(/\s+/g, " ");
@@ -1132,6 +1129,16 @@ function ListenScreen({ lang }: { lang: Language }) {
 }
 
 // --- Main App Component ---
+const isWordMatchArabic = (w1: string, w2: string) => {
+  if (w1 === w2) return true;
+  if (w1.replace(/ا/g, '') === w2.replace(/ا/g, '')) return true;
+  if (w1.length > 3 && w2.length > 3) {
+    const dist = getLevenshteinDistance(w1, w2);
+    if (dist === 1) return true;
+  }
+  return false;
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userCountry, setUserCountry] = useState<string | null>(null);
@@ -1154,7 +1161,6 @@ export default function App() {
   const [coins, setCoins] = useState(0);
   const [xp, setXp] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
-  const [donations, setDonations] = useState(0);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -1201,7 +1207,6 @@ export default function App() {
       setLessons([]);
       setXp(0);
       setCoins(0);
-      setDonations(0);
       return;
     }
 
@@ -1213,7 +1218,6 @@ export default function App() {
         const data = snapshot.data();
         if (data.xp !== undefined) setXp(data.xp);
         if (data.coins !== undefined) setCoins(data.coins);
-        if (data.donations !== undefined) setDonations(data.donations);
         if (data.totalScore !== undefined) setTotalScore(data.totalScore);
 
         const needsNameUpdate = (data.displayName === 'حافظ مجهول' || !data.displayName) && auth.currentUser?.displayName;
@@ -1235,7 +1239,6 @@ export default function App() {
           countryCode: userCountry || '',
           xp: 10,
           coins: 10,
-          donations: 0,
           totalScore: 0,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
@@ -1266,7 +1269,7 @@ export default function App() {
       profileUnsubscribe();
       lessonsUnsubscribe();
     };
-  }, [auth.currentUser?.uid, userCountry]);
+  }, [user?.uid, userCountry]);
 
   const [uploadNotification, setUploadNotification] = useState<string | null>(null);
   
@@ -1298,6 +1301,28 @@ export default function App() {
           console.error("Custom token login failed:", err);
           localStorage.removeItem('hoffad_custom_token');
         }
+      }
+
+      // 2. Check for manual session fallback (Phone Login)
+      const sessionUid = localStorage.getItem('hoffad_session_uid');
+      if (sessionUid) {
+        const sessionName = localStorage.getItem('hoffad_session_name');
+        const sessionPhoto = localStorage.getItem('hoffad_session_photo');
+        
+        // Create a mock user object for UI
+        setUser({
+          uid: sessionUid,
+          displayName: sessionName,
+          photoURL: sessionPhoto,
+          isAnonymous: false, // Treat as "real" for UI
+          email: '',
+          emailVerified: false,
+          metadata: {},
+          providerData: []
+        } as any);
+        
+        setIsAuthChecking(false);
+        return;
       }
 
       // No more anonymous login. Just finish checking.
@@ -1591,7 +1616,7 @@ export default function App() {
     }
   };
 
-  const updateProfile = async (data: Partial<{ xp: number, coins: number, donations: number, totalScore: number }>) => {
+  const updateProfile = async (data: Partial<{ xp: number, coins: number, totalScore: number }>) => {
     if (!user) return;
     try {
       console.log("[Firebase] Updating profile...", data);
@@ -1604,16 +1629,6 @@ export default function App() {
     } catch (err) {
       console.error("Error updating profile:", err);
       handleFirestoreError(err, 'write', `users/${user.uid}`);
-    }
-  };
-
-  const handleDonate = (amount: number) => {
-    if (coins >= amount) {
-      const newCoins = coins - amount;
-      const newDonations = donations + 1;
-      setCoins(newCoins);
-      setDonations(newDonations);
-      updateProfile({ coins: newCoins, donations: newDonations });
     }
   };
 
@@ -1634,7 +1649,7 @@ export default function App() {
       xp: newXp,
       totalScore: newTotalScore 
     });
-    setView('garden');
+    setView('study');
     setActiveLesson(null);
   };
 
@@ -1909,14 +1924,6 @@ export default function App() {
                 </button>
 
                 <button 
-                  onClick={() => { setView('garden'); setIsSidebarOpen(false); }}
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'garden' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <TreePine size={22} className={view === 'garden' ? 'text-emerald-600' : 'text-emerald-500'} />
-                  <span>{t[lang].garden}</span>
-                </button>
-
-                <button 
                   onClick={() => { setView('leaderboard'); setIsSidebarOpen(false); }}
                   className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'leaderboard' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
                 >
@@ -1998,11 +2005,6 @@ export default function App() {
       {/* Main Content Area */}
       <main className={`flex-1 ${view === 'mushaf' ? 'max-w-7xl' : 'max-w-md lg:max-w-7xl'} w-full mx-auto p-2 sm:p-4 flex flex-col pb-8 transition-all duration-500`}>
         <AnimatePresence mode="wait">
-          {view === 'garden' && (
-            <motion.div key="garden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              <GardenScreen xp={xp} coins={coins} donations={donations} onDonate={handleDonate} onStudyClick={() => setView('study')} lang={lang} />
-            </motion.div>
-          )}
           {view === 'study' && (
             <motion.div key="study" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
               <StudyScreen lessons={lessons} onStartGame={startGame} lang={lang} />
@@ -2041,7 +2043,7 @@ export default function App() {
           )}
           {view === 'mushaf' && (
             <motion.div key="mushaf" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col">
-              <MushafViewer onClose={() => setView('garden')} lang={lang} />
+              <MushafViewer onClose={() => setView('study')} lang={lang} />
             </motion.div>
           )}
           {view === 'about' && (
@@ -2056,12 +2058,12 @@ export default function App() {
           )}
           {view === 'leaderboard' && (
             <motion.div key="leaderboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              <Leaderboard onBack={() => setView('garden')} lang={lang} t={currentT} />
+              <Leaderboard onBack={() => setView('study')} lang={lang} t={currentT} />
             </motion.div>
           )}
           {view === 'recorder' && (
             <motion.div key="recorder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              <RecitationRecorder onBack={() => setView('garden')} lang={lang} t={currentT} />
+              <RecitationRecorder onBack={() => setView('study')} lang={lang} t={currentT} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2188,124 +2190,6 @@ function AboutScreen({ lang }: { lang: Language }) {
             </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function GardenScreen({ xp, coins, donations, onDonate, onStudyClick, lang }: { xp: number, coins: number, donations: number, onDonate: (amount: number) => void, onStudyClick: () => void, lang: Language }) {
-  const levels = [
-    { max: 50, title: t[lang].seedOfKnowledge, icon: '🌱', color: 'text-emerald-500' },
-    { max: 150, title: t[lang].plantOfCertainty, icon: '🌿', color: 'text-emerald-600' },
-    { max: 300, title: t[lang].treeOfWisdom, icon: '🌳', color: 'text-green-700' },
-    { max: Infinity, title: t[lang].gardenOfGiving, icon: '🍎', color: 'text-red-500' }
-  ];
-  
-  const currentLevelIndex = levels.findIndex(l => xp < l.max);
-  const currentLevel = currentLevelIndex === -1 ? levels[levels.length - 1] : levels[currentLevelIndex];
-  const nextLevel = currentLevelIndex === -1 ? null : levels[currentLevelIndex];
-  const prevMax = currentLevelIndex <= 0 ? 0 : levels[currentLevelIndex - 1].max;
-  
-  const progress = nextLevel ? ((xp - prevMax) / (nextLevel.max - prevMax)) * 100 : 100;
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col lg:flex-row gap-6 py-4 pb-24 items-start"
-    >
-      {/* Section 1: The Self (Tree & Title) */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm w-full lg:w-1/3 text-center border border-slate-100 h-full lg:min-h-[500px] flex flex-col justify-center">
-        <h2 className="text-xl font-bold text-slate-500 mb-2">{t[lang].currentLevel}</h2>
-        <h3 className={`text-3xl font-black mb-6 ${currentLevel.color}`}>{currentLevel.title}</h3>
-        
-        <motion.div 
-          animate={{ y: [0, -10, 0] }}
-          transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-          className="text-9xl mb-6 drop-shadow-xl"
-        >
-          {currentLevel.icon}
-        </motion.div>
-
-        {nextLevel && (
-          <div className="w-full bg-slate-100 rounded-full h-4 mb-2 overflow-hidden flex">
-            <motion.div 
-              className="h-full bg-emerald-400"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ type: 'spring', bounce: 0.5 }}
-            />
-          </div>
-        )}
-        <p className="text-slate-400 text-sm font-medium">
-          {nextLevel ? t[lang].pointsToNext.replace('{points}', String(nextLevel.max - xp)) : t[lang].reachedHighestLevel}
-        </p>
-      </div>
-
-      {/* Section 2: The Others (Charity Shop) */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm w-full lg:flex-1 border border-slate-100 flex flex-col gap-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <HeartHandshake className="text-rose-500" />
-            {t[lang].fruitsOfGiving}
-          </h2>
-          <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
-            <Gift size={16} />
-            {t[lang].donationsCount.replace('{count}', String(donations))}
-          </div>
-        </div>
-
-        <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-          {t[lang].useCoins}
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
-          <button 
-            onClick={() => onDonate(20)}
-            disabled={coins < 20}
-            className={`flex items-center justify-between p-4 rounded-2xl transition-all ${coins >= 20 ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' : 'bg-slate-50 text-slate-400 opacity-70'}`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-white p-2 rounded-xl shadow-sm"><Droplet size={24} className={coins >= 20 ? 'text-emerald-500' : 'text-slate-400'} /></div>
-              <span className="font-bold">{t[lang].water}</span>
-            </div>
-            <span className="font-bold text-sm bg-white px-3 py-1 rounded-full shadow-sm">20 {t[lang].coin}</span>
-          </button>
-
-          <button 
-            onClick={() => onDonate(50)}
-            disabled={coins < 50}
-            className={`flex items-center justify-between p-4 rounded-2xl transition-all ${coins >= 50 ? 'bg-amber-50 hover:bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-400 opacity-70'}`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-white p-2 rounded-xl shadow-sm"><Utensils size={24} className={coins >= 50 ? 'text-amber-500' : 'text-slate-400'} /></div>
-              <span className="font-bold">{t[lang].food}</span>
-            </div>
-            <span className="font-bold text-sm bg-white px-3 py-1 rounded-full shadow-sm">50 {t[lang].coin}</span>
-          </button>
-
-          <button 
-            onClick={() => onDonate(100)}
-            disabled={coins < 100}
-            className={`flex items-center justify-between p-4 rounded-2xl transition-all ${coins >= 100 ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' : 'bg-slate-50 text-slate-400 opacity-70'}`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-white p-2 rounded-xl shadow-sm"><Sprout size={24} className={coins >= 100 ? 'text-emerald-500' : 'text-slate-400'} /></div>
-              <span className="font-bold">{t[lang].plantTree}</span>
-            </div>
-            <span className="font-bold text-sm bg-white px-3 py-1 rounded-full shadow-sm">100 {t[lang].coin}</span>
-          </button>
-        </div>
-
-        {coins < 20 && (
-          <motion.button
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            onClick={onStudyClick}
-            className="mt-6 text-emerald-600 font-bold flex items-center justify-center gap-2 w-full p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors"
-          >
-            <BookOpen size={20} />
-            {t[lang].goToStudy}
-          </motion.button>
-        )}
       </div>
     </motion.div>
   );
@@ -2442,17 +2326,34 @@ function BlanksGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
   const [filledBlanks, setFilledBlanks] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    const textWords = lesson.text.split(' ').filter(w => w.trim() !== '');
-    const gameWords = textWords.map((word, index) => ({ 
-      word, 
-      isHidden: Math.random() > 0.6 && word.length > 1, 
-      id: index 
-    }));
+    // Better split using regex to handle any whitespace and potentially attached punctuation/markers
+    const textWords = lesson.text.split(/\s+/).filter(w => w.trim() !== '');
+    const gameWords = textWords.map((word, index) => {
+      // Is this word a potential candidate for hiding?
+      // 1. Must be longer than 1 character
+      // 2. Must not be just a number or a lone verse marker/ornament
+      const isVisibleOnly = /^[\d٠-٩()\[\]{}۝]+$/.test(word) || word.length <= 1 || word === '۝';
+      
+      return { 
+        word, 
+        isHidden: !isVisibleOnly && Math.random() > 0.6, 
+        id: index 
+      };
+    });
     if (!gameWords.some(w => w.isHidden) && gameWords.length > 0) {
-      gameWords[Math.floor(Math.random() * gameWords.length)].isHidden = true;
+      // Force at least one hidden word if none were selected, pick the longest word
+      const candidates = gameWords.filter(w => {
+        const isVisibleOnly = /^[\d٠-٩()\[\]{}۝]+$/.test(w.word) || w.word.length <= 1 || w.word === '۝';
+        return !isVisibleOnly;
+      });
+      if (candidates.length > 0) {
+        const longestIdx = candidates.reduce((a, b, idx) => b.word.length > candidates[a].word.length ? idx : a, 0);
+        candidates[longestIdx].isHidden = true;
+      }
     }
     setWords(gameWords);
     setOptions(gameWords.filter(w => w.isHidden).map(w => ({ word: w.word, id: w.id })).sort(() => Math.random() - 0.5));
+    setFilledBlanks({});
   }, [lesson]);
 
   const handleOptionClick = (option: {word: string, id: number}) => {
@@ -2490,31 +2391,38 @@ function BlanksGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
 
   return (
     <>
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-6 flex-1">
-        <p className="text-slate-500 text-sm mb-6 text-center">{t[lang].fillBlanksInstructions}</p>
-        <div className="flex flex-wrap gap-2 leading-loose text-lg font-medium text-slate-800 justify-center">
+    <div className="bg-slate-50/50 p-6 sm:p-10 rounded-[32px] border border-slate-100 flex-1 flex flex-col">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-50 mb-6 flex-1 flex flex-col justify-center">
+        <p className="text-slate-400 text-sm mb-8 text-center font-bold tracking-widest uppercase italic">{t[lang].fillBlanksInstructions}</p>
+        <div className="flex flex-wrap gap-4 leading-[2.8] text-2xl sm:text-3xl font-quran text-slate-800 justify-center dir-rtl">
           {words.map((w, i) => {
-            if (!w.isHidden) return <span key={i} className="px-1">{w.word}</span>;
+            const isOrnament = w.word === '۝' || /^[\d٠-٩]+$/.test(w.word);
+            if (!w.isHidden) return (
+              <span key={i} className={`px-1 ${isOrnament ? 'text-slate-300 opacity-40 mx-2 scale-110' : ''}`}>
+                {w.word}
+              </span>
+            );
             const filledWord = filledBlanks[w.id];
             return (
               <button
                 key={i} onClick={() => handleBlankClick(w.id)}
-                className={`min-w-[80px] h-10 px-4 rounded-xl border-2 flex items-center justify-center transition-colors ${filledWord ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold' : 'bg-slate-50 border-dashed border-slate-300 text-slate-400'}`}
+                className={`min-w-[100px] h-12 px-5 rounded-2xl border-2 flex items-center justify-center transition-all ${filledWord ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-105' : 'bg-slate-50 border-dashed border-slate-200 text-transparent'}`}
               >
-                {filledWord || '___'}
+                <span className="font-quran translate-y-[-2px]">{filledWord}</span>
+                {!filledWord && <span className="bg-slate-200 w-full h-1 rounded-full opacity-30 px-4" />}
               </button>
             );
           })}
         </div>
       </div>
-      <div className="bg-slate-100 p-4 rounded-3xl min-h-[120px]">
-        <div className="flex flex-wrap gap-3 justify-center">
+      <div className="bg-white/50 p-6 rounded-[32px] border border-slate-100/50 min-h-[140px] shadow-inner">
+        <div className="flex flex-wrap gap-4 justify-center">
           <AnimatePresence>
             {options.map(opt => (
               <motion.button
                 key={opt.id} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
                 onClick={() => handleOptionClick(opt)}
-                className="bg-white px-5 py-3 rounded-xl shadow-sm font-bold text-emerald-600 border border-emerald-100 hover:bg-emerald-50 active:scale-95 transition-all"
+                className="bg-white px-6 py-4 rounded-2xl shadow-md font-quran text-xl text-emerald-600 border border-emerald-50 hover:bg-emerald-50 hover:-translate-y-1 transition-all active:scale-95"
               >
                 {opt.word}
               </motion.button>
@@ -2523,13 +2431,14 @@ function BlanksGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
           {options.length === 0 && isAllFilled && (
             <motion.button
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onClick={checkAnswer}
-              className="w-full bg-green-500 text-white font-bold text-lg py-4 rounded-2xl shadow-md shadow-green-200 flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-emerald-500 text-white font-bold text-xl py-5 rounded-2xl shadow-xl shadow-emerald-100 flex items-center justify-center gap-3 mt-4 hover:bg-emerald-600 transition-all"
             >
-              <Check size={24} /> {t[lang].checkAnswer}
+              <Check size={28} /> {t[lang].checkAnswer}
             </motion.button>
           )}
         </div>
       </div>
+    </div>
     </>
   );
 }
@@ -2540,7 +2449,7 @@ function OrderGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: () 
   const [selected, setSelected] = useState<{id: number, text: string}[]>([]);
 
   useEffect(() => {
-    const words = lesson.text.split(' ').filter(w => w.trim() !== '');
+    const words = lesson.text.split(/\s+/).filter(w => w.trim() !== '');
     const newChunks = [];
     // Split into chunks of 2 words for easier ordering
     for(let i=0; i<words.length; i+=2) {
@@ -2568,44 +2477,49 @@ function OrderGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: () 
 
   return (
     <>
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-6 flex-1 flex flex-col">
-        <p className="text-slate-500 text-sm mb-4 text-center">{t[lang].orderInstructions}</p>
-        <div className="flex-1 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-wrap content-start gap-2 bg-slate-50">
-          <AnimatePresence>
-            {selected.map(chunk => (
-              <motion.button
-                key={chunk.id} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                onClick={() => deselectChunk(chunk)}
-                className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold shadow-sm"
-              >
-                {chunk.text}
-              </motion.button>
-            ))}
-            {selected.length === 0 && <span className="text-slate-400 w-full text-center mt-4">{t[lang].clickSentencesToOrder}</span>}
-          </AnimatePresence>
+      <div className="bg-slate-50/50 p-6 sm:p-10 rounded-[32px] border border-slate-100 flex-1 flex flex-col">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-50 mb-6 flex-1 flex flex-col justify-center">
+          <p className="text-slate-400 text-sm mb-8 text-center font-bold tracking-widest uppercase italic">{t[lang].orderInstructions}</p>
+          <div className="flex flex-wrap gap-4 leading-[2.8] text-2xl sm:text-3xl font-quran text-slate-800 justify-center dir-rtl min-h-[120px]">
+            <AnimatePresence mode="popLayout">
+              {selected.map((chunk, idx) => (
+                <motion.button
+                  key={`${chunk.id}-${idx}`} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+                  onClick={() => deselectChunk(chunk)}
+                  className="px-2 hover:text-emerald-600 hover:scale-105 transition-all"
+                >
+                  {chunk.text}
+                </motion.button>
+              ))}
+              {selected.length === 0 && (
+                <p className="text-slate-300 italic font-sans text-xl">{t[lang].clickSentencesToOrder || "Click chunks to build the verse"}</p>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
-      <div className="bg-slate-100 p-4 rounded-3xl min-h-[120px]">
-        <div className="flex flex-wrap gap-2 justify-center">
-          <AnimatePresence>
-            {chunks.map(chunk => (
+
+        <div className="bg-white/50 p-6 rounded-[32px] border border-slate-100/50 min-h-[140px] shadow-inner">
+          <div className="flex flex-wrap gap-4 justify-center">
+            <AnimatePresence>
+              {chunks.map(chunk => (
+                <motion.button
+                  key={chunk.id} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+                  onClick={() => selectChunk(chunk)}
+                  className="bg-white px-6 py-4 rounded-2xl shadow-md font-quran text-xl text-slate-700 border border-slate-100 hover:bg-emerald-50 hover:-translate-y-1 transition-all active:scale-95"
+                >
+                  {chunk.text}
+                </motion.button>
+              ))}
+            </AnimatePresence>
+            {chunks.length === 0 && selected.length > 0 && (
               <motion.button
-                key={chunk.id} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                onClick={() => selectChunk(chunk)}
-                className="bg-white px-4 py-3 rounded-xl shadow-sm font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 active:scale-95"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onClick={checkAnswer}
+                className="w-full bg-emerald-500 text-white font-bold text-xl py-5 rounded-2xl shadow-xl shadow-emerald-100 flex items-center justify-center gap-3 mt-4 hover:bg-emerald-600 transition-all font-sans"
               >
-                {chunk.text}
+                <Check size={28} /> {t[lang].checkOrder}
               </motion.button>
-            ))}
-          </AnimatePresence>
-          {chunks.length === 0 && (
-            <motion.button
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onClick={checkAnswer}
-              className="w-full bg-green-500 text-white font-bold text-lg py-4 rounded-2xl shadow-md shadow-green-200 flex items-center justify-center gap-2 mt-2"
-            >
-              <Check size={24} /> {t[lang].checkOrder}
-            </motion.button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </>
@@ -2619,6 +2533,7 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
   const [transcript, setTranscript] = useState('');
   const [writeText, setWriteText] = useState('');
   const [isSelfRevealed, setIsSelfRevealed] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const [result, setResult] = useState<{ 
     score: number, 
     segments: AlignmentSegment[],
@@ -2633,6 +2548,70 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
   const isStartingRef = useRef(false);
   const fullTranscriptRef = useRef('');
   const currentSessionTranscriptRef = useRef('');
+
+  const getRealTimeSegments = () => {
+    const targetWords = lesson.text.split(/\s+/);
+    const currentInput = subMode === 'voice' ? transcript : writeText;
+    const normalizedTarget = targetWords.map(w => normalizeArabic(w));
+    const normalizedInput = currentInput.split(/\s+/).map(w => normalizeArabic(w));
+
+    // Simple forward matching for real-time feedback
+    let inputIdx = 0;
+    return targetWords.map((word, idx) => {
+      const isOrnament = word === '۝' || /^[\d٠-٩]+$/.test(word);
+      if (isOrnament) return { text: word, revealed: true, isOrnament: true };
+
+      // Try to find this word in the input stream (greedy approach for real-time)
+      let found = false;
+      const targetNorm = normalizedTarget[idx];
+      
+      // Look ahead in input a bit to find a match (handling stutters or filler words)
+      for (let i = inputIdx; i < Math.min(inputIdx + 10, normalizedInput.length); i++) {
+        if (normalizedInput[i] && isWordMatchArabic(targetNorm, normalizedInput[i])) {
+          found = true;
+          inputIdx = i + 1; // Move pointer forward
+          break;
+        }
+      }
+
+      return { text: word, revealed: found || showHint || isSelfRevealed, isOrnament: false };
+    });
+  };
+
+  const renderMaskedArea = () => {
+    const segments = getRealTimeSegments();
+    const isTesting = (subMode === 'self' && !isSelfRevealed) || (subMode !== 'self' && !showHint);
+
+    return (
+      <div className={`w-full bg-slate-50/50 p-6 sm:p-10 rounded-3xl border border-slate-100 mb-8 text-center transition-all relative group overflow-hidden ${isRecording ? 'border-emerald-200 ring-4 ring-emerald-50/50' : ''}`}>
+        <div className="flex flex-wrap justify-center gap-x-2 gap-y-4 dir-rtl leading-[2.5]">
+          {segments.map((seg, i) => (
+            <motion.span
+              key={i}
+              initial={seg.revealed ? { opacity: 0, y: 5 } : false}
+              animate={seg.revealed ? { opacity: 1, y: 0 } : { opacity: 1 }}
+              className={`text-2xl sm:text-3xl font-quran transition-all ${
+                seg.revealed 
+                  ? (seg.isOrnament ? 'text-slate-300 opacity-40 mx-2 scale-110' : 'text-slate-800') 
+                  : 'text-slate-200 select-none'
+              }`}
+            >
+              {seg.revealed ? seg.text : (seg.isOrnament ? seg.text : '____')}
+            </motion.span>
+          ))}
+        </div>
+        
+        {subMode !== 'self' && (
+          <button 
+            onClick={() => setShowHint(!showHint)}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-200 px-4 py-1 rounded-full text-xs font-bold text-slate-500 hover:text-emerald-600 shadow-sm"
+          >
+            {showHint ? (lang === 'ar' ? 'إخفاء المساعدة' : 'Hide Hint') : (lang === 'ar' ? 'إظهار المساعدة' : 'Show Hint')}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     // Initialize Speech Recognition
@@ -2828,17 +2807,6 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
     setIsAnalyzing(true);
     setError('');
 
-    // Helper for lenient Arabic word matching
-    const isWordMatch = (w1: string, w2: string) => {
-      if (w1 === w2) return true;
-      if (w1.replace(/ا/g, '') === w2.replace(/ا/g, '')) return true;
-      if (w1.length > 3 && w2.length > 3) {
-        const dist = getLevenshteinDistance(w1, w2);
-        if (dist === 1) return true;
-      }
-      return false;
-    };
-
     try {
       // --- LOCAL COMPARISON LOGIC (Strict Word Alignment) ---
       const n = normalizedOriginal.length;
@@ -2850,7 +2818,7 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
 
       for (let i = 1; i <= n; i++) {
         for (let j = 1; j <= m; j++) {
-          const cost = isWordMatch(normalizedOriginal[i - 1], normalizedTranscript[j - 1]) ? 0 : 1;
+          const cost = isWordMatchArabic(normalizedOriginal[i - 1], normalizedTranscript[j - 1]) ? 0 : 1;
           dp[i][j] = Math.min(
             dp[i - 1][j] + 1,       // deletion
             dp[i][j - 1] + 1,       // insertion
@@ -2863,26 +2831,31 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
       let bi = n;
       let bj = m;
 
-      while (bi > 0 || bj > 0) {
-        if (bi > 0 && bj > 0 && isWordMatch(normalizedOriginal[bi - 1], normalizedTranscript[bj - 1]) && dp[bi][bj] === dp[bi - 1][bj - 1]) {
-          segments.unshift({ type: 'correct', text: originalWords[bi - 1], originalText: originalWords[bi - 1], origIdx: bi - 1 });
-          bi--;
-          bj--;
-        } else if (bi > 0 && dp[bi][bj] === dp[bi - 1][bj] + 1) {
-          segments.unshift({ type: 'deletion', text: originalWords[bi - 1], origIdx: bi - 1 });
-          bi--;
-        } else if (bj > 0 && dp[bi][bj] === dp[bi][bj - 1] + 1) {
-          segments.unshift({ type: 'insertion', text: processedTranscript[bj - 1] });
-          bj--;
-        } else if (bi > 0 && bj > 0) {
-          segments.unshift({ type: 'substitution', text: processedTranscript[bj - 1], originalText: originalWords[bi - 1], origIdx: bi - 1 });
-          bi--;
-          bj--;
-        } else {
-          if (bi > 0) bi--;
-          else if (bj > 0) bj--;
+        while (bi > 0 || bj > 0) {
+          if (bi > 0 && bj > 0 && isWordMatchArabic(normalizedOriginal[bi - 1], normalizedTranscript[bj - 1]) && dp[bi][bj] === dp[bi - 1][bj - 1]) {
+            segments.unshift({ type: 'correct', text: originalWords[bi - 1], originalText: originalWords[bi - 1], origIdx: bi - 1 });
+            bi--;
+            bj--;
+          } else if (bi > 0 && dp[bi][bj] === dp[bi - 1][bj] + 1) {
+            segments.unshift({ type: 'deletion', text: originalWords[bi - 1], origIdx: bi - 1 });
+            bi--;
+          } else if (bj > 0 && dp[bi][bj] === dp[bi][bj - 1] + 1) {
+            segments.unshift({ type: 'insertion', text: processedTranscript[bj - 1] });
+            bj--;
+          } else if (bi > 0 && bj > 0) {
+            segments.unshift({ type: 'substitution', text: processedTranscript[bj - 1], originalText: originalWords[bi - 1], origIdx: bi - 1 });
+            bi--;
+            bj--;
+          } else {
+            if (bi > 0) {
+              segments.unshift({ type: 'deletion', text: originalWords[bi - 1], origIdx: bi - 1 });
+              bi--;
+            } else if (bj > 0) {
+              segments.unshift({ type: 'insertion', text: processedTranscript[bj - 1] });
+              bj--;
+            }
+          }
         }
-      }
 
       // Detect Swapped Verses
       const mistakes: string[] = [];
@@ -2969,23 +2942,39 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
 
         {!isAnalyzing && !result && (
           <>
+            {/* Real-time Interaction Area (Merged Method) */}
+            {renderMaskedArea()}
+
             {subMode === 'voice' && (
               <>
-                <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all ${isRecording ? 'bg-red-100 text-red-500 animate-pulse scale-110' : 'bg-emerald-100 text-emerald-600'}`}>
-                  <Mic size={40} />
-                </div>
-                <p className="text-slate-500 text-center mb-8 font-medium">{isRecording ? t[lang].listening : t[lang].clickMicToStart}</p>
-                <div className="w-full bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 min-h-[120px] mb-8 text-center">
-                  <p className="text-xl leading-relaxed text-slate-700 italic">{transcript || "..."}</p>
-                </div>
-                {error && <p className="text-red-500 text-sm mb-4 font-bold">{error}</p>}
-                <div className="flex gap-4 w-full">
-                  <button onClick={toggleRecording} className={`flex-1 py-5 rounded-2xl font-bold text-lg shadow-lg transition-all focus:ring-4 outline-none ${isRecording ? 'bg-red-500 text-white shadow-red-100 focus:ring-red-300' : 'bg-emerald-500 text-white shadow-emerald-100 focus:ring-emerald-300'}`}>
-                    {isRecording ? t[lang].stop : t[lang].start}
+                <div className="flex flex-col items-center mb-8">
+                  <button 
+                    onClick={toggleRecording}
+                    className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 transition-all focus:ring-4 outline-none shadow-xl ${isRecording ? 'bg-red-500 text-white animate-pulse scale-110 shadow-red-100 ring-red-100' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-100 ring-emerald-100'}`}
+                  >
+                    {isRecording ? <MicOff size={40} /> : <Mic size={40} />}
                   </button>
+                  <p className="text-slate-400 text-sm font-bold tracking-widest uppercase italic">
+                    {isRecording ? t[lang].listening : t[lang].clickMicToStart}
+                  </p>
+                </div>
+
+                {error && <p className="text-red-500 text-sm mb-4 font-bold text-center">{error}</p>}
+                
+                {/* Visual feedback of what is currently heard (Optional, but useful for debugging) */}
+                {transcript && (
+                  <div className="w-full bg-slate-50/50 p-4 rounded-2xl border border-dashed border-slate-100 mb-8 text-center animate-in fade-in slide-in-from-bottom-2">
+                    <p className="text-slate-400 font-quran text-lg opacity-60">{transcript}</p>
+                  </div>
+                )}
+                
+                <div className="flex gap-4 w-full">
                   {transcript && (
-                    <button onClick={() => checkRecitation(transcript)} className="flex-1 bg-blue-500 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-blue-100 hover:bg-blue-600 focus:ring-4 focus:ring-blue-300 outline-none transition-all flex items-center justify-center gap-2">
-                      <Check /> {t[lang].check}
+                    <button 
+                      onClick={() => checkRecitation(transcript)} 
+                      className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-bold text-xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-3"
+                    >
+                      <Check size={28} /> {t[lang].check}
                     </button>
                   )}
                 </div>
@@ -2993,38 +2982,21 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
             )}
 
             {subMode === 'write' && (
-              <div className="w-full flex flex-col">
+              <div className="w-full">
                 <textarea 
                   value={writeText} onChange={(e) => setWriteText(e.target.value)}
                   placeholder={t[lang].typeHere}
-                  className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:ring-2 focus:ring-emerald-500 outline-none min-h-[180px] text-xl font-arabic mb-6 resize-none"
-                  dir="auto"
+                  className="w-full p-8 bg-slate-50 border-2 border-slate-100 rounded-[32px] focus:ring-2 focus:ring-emerald-500 outline-none min-h-[200px] text-2xl font-quran mb-6 resize-none transition-all text-center dir-rtl"
                 />
-                <button onClick={() => checkRecitation(writeText)} disabled={!writeText.trim()} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-2">
-                  <Check /> {t[lang].check}
+                <button onClick={() => checkRecitation(writeText)} disabled={!writeText.trim()} className="w-full bg-emerald-500 text-white py-6 rounded-2xl font-bold text-xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 focus:ring-4 focus:ring-emerald-300 outline-none transition-all flex items-center justify-center gap-3">
+                  <Check size={28} /> {t[lang].check}
                 </button>
               </div>
             )}
 
             {subMode === 'self' && (
               <div className="w-full flex flex-col items-center">
-                <div className="w-full bg-emerald-50/50 p-8 rounded-[32px] border-2 border-emerald-100/50 mb-8 min-h-[160px] flex items-center justify-center relative overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    {isSelfRevealed ? (
-                      <motion.p key="revealed" initial={{ opacity: 0, filter: 'blur(10px)' }} animate={{ opacity: 1, filter: 'blur(0px)' }} className="text-2xl sm:text-3xl leading-relaxed font-arabic text-slate-800 text-center">
-                        {lesson.text}
-                      </motion.p>
-                    ) : (
-                      <motion.div key="hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-4">
-                        <div className="flex gap-2">
-                          {[1,2,3,4,5].map(i => <div key={i} className="w-3 h-3 bg-emerald-200 rounded-full animate-pulse" style={{ animationDelay: `${i*0.2}s` }} />)}
-                        </div>
-                        <p className="text-emerald-600 font-bold">{t[lang].reciteThenReveal}</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-                <div className="flex gap-4 w-full">
+                <div className="mt-4 flex gap-4 w-full">
                   <button onClick={() => setIsSelfRevealed(!isSelfRevealed)} className="flex-1 bg-slate-100 text-slate-700 py-5 rounded-2xl font-bold text-lg border-2 border-slate-200 hover:bg-slate-200 focus:ring-4 focus:ring-slate-300 outline-none transition-all flex items-center justify-center gap-2">
                     {isSelfRevealed ? <EyeOff /> : <Eye />} {isSelfRevealed ? t[lang].hideAyah : t[lang].showAyah}
                   </button>
@@ -3039,11 +3011,11 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
 
         {result && (
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full">
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <div className="flex-1 w-full bg-slate-50 p-6 sm:p-10 rounded-[32px] border border-slate-200 text-right leading-loose text-2xl sm:text-4xl font-arabic shadow-inner">
-                <div className="mb-8 text-center lg:text-right border-b border-slate-200 pb-6 flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex flex-col gap-8 items-start">
+              <div className="flex-1 w-full bg-white p-6 sm:p-10 rounded-[40px] border border-slate-100 shadow-sm leading-[2.5] text-2xl sm:text-3xl font-quran text-right dir-rtl">
+                <div className="mb-8 text-center lg:text-right border-b border-slate-100 pb-6 flex flex-col sm:flex-row items-center gap-4">
                   <div className="text-5xl">{result.score === 100 ? '🌟' : '💪'}</div>
-                  <div className="text-right">
+                  <div className="text-right font-sans">
                     <h3 className={`text-2xl sm:text-3xl font-black ${result.score >= 80 ? 'text-green-600' : 'text-amber-600'}`}>
                       {t[lang].resultScore.replace('{score}', String(result.score))}
                     </h3>
@@ -3052,17 +3024,18 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
                 </div>
                 <div className="flex flex-wrap gap-y-6 justify-center lg:justify-start" dir={APP_LANGUAGES.find(l => l.code === (lesson.lang || lang))?.dir || 'auto'}>
                   {result.segments.map((seg, index) => {
+                    const isOrnament = seg.text === '۝' || /^[\d٠-٩]+$/.test(seg.text);
                     if (seg.type === 'correct') {
-                      return <span key={index} className="mx-1 px-1 text-green-600 bg-green-50 rounded font-arabic">{seg.text}</span>;
+                      return <span key={index} className={`mx-0.5 px-0.5 ${isOrnament ? 'text-slate-300 opacity-60' : 'text-green-600'}`}>{seg.text}</span>;
                     }
                     if (seg.type === 'swapped') {
-                      return <span key={index} className="mx-1 px-1 text-purple-600 bg-purple-50 rounded font-arabic underline decoration-purple-300 decoration-2">{seg.text}</span>;
+                      return <span key={index} className="mx-0.5 px-0.5 text-purple-600 underline decoration-purple-200 decoration-4 underline-offset-8">{seg.text}</span>;
                     }
                     if (seg.type === 'deletion') {
                       return (
-                        <span key={index} className="group relative mx-1 px-1 text-slate-400 font-arabic line-through decoration-slate-300 decoration-2">
+                        <span key={index} className="group relative mx-0.5 px-0.5 text-slate-300 line-through decoration-slate-200 decoration-2">
                           {seg.text}
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1">
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1 font-sans">
                             {lang === 'ar' ? 'كلمة ناقصة' : 'Missing word'}
                           </span>
                         </span>
@@ -3070,9 +3043,9 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
                     }
                     if (seg.type === 'substitution') {
                       return (
-                        <span key={index} className="group relative mx-1 px-1 text-red-500 bg-red-50 rounded font-arabic border-b-2 border-red-300">
+                        <span key={index} className="group relative mx-0.5 px-0.5 text-red-500 border-b-4 border-red-100">
                           {seg.text}
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-red-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1">
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-red-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1 font-sans">
                             {lang === 'ar' ? `بدلاً من: ${seg.originalText}` : `Instead of: ${seg.originalText}`}
                           </span>
                         </span>
@@ -3080,9 +3053,9 @@ function ReciteGame({ lesson, onSuccess, lang }: { lesson: Lesson, onSuccess: ()
                     }
                     if (seg.type === 'insertion') {
                        return (
-                        <span key={index} className="group relative mx-1 px-1 text-amber-600 bg-amber-50 rounded font-arabic italic">
+                        <span key={index} className="group relative mx-0.5 px-0.5 text-amber-600 italic">
                           {seg.text}
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-amber-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1">
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover:block bg-amber-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1 font-sans">
                             {lang === 'ar' ? 'كلمة زائدة' : 'Extra word'}
                           </span>
                         </span>
@@ -3190,7 +3163,18 @@ function ParentScreen({
       const selectedAyahs = data.ayahs;
       
       // Join ayahs with the beautiful end-of-ayah symbol
-      let text = selectedAyahs.map((a: any) => a.text).join(' ۝ ') + ' ۝';
+      // Ensure clean spacing around ornaments to avoid splitting issues in games
+      let text = selectedAyahs.map((a: any) => a.text.trim()).join(' ۝ ') + ' ۝';
+      
+      // Critical Step: Pre-split symbols that might be attached to words (like digits or markers)
+      // This ensures words like "الَّذِي" are always correctly isolated
+      text = text
+        .replace(/([^\s])([٠-٩0-9۝])/g, '$1 $2') // Add space before symbol/digit if attached
+        .replace(/([٠-٩0-9۝])([^\s])/g, '$1 $2') // Add space after symbol/digit if attached
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')   // Remove zero-width characters
+        .replace(/\s+/g, ' ')                   // Normalize all spaces
+        .trim();
+
       const surahName = data.surahName || '';
       const title = `${surahName} ${t[lang].ayahsRange.replace('{start}', String(startAyah)).replace('{end}', String(endAyah))}`;
       

@@ -10,7 +10,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { landingTranslations, languages } from './landing-translations';
 import { auth, googleProvider, db } from './firebase';
 import { safeJson } from './lib/quran';
-import { signInWithPopup, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, deleteDoc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export function LandingPage() {
@@ -57,10 +57,18 @@ export function LandingPage() {
     document.documentElement.dir = currentLang.dir;
     document.documentElement.lang = lang;
 
-    // If already logged in, redirect to app
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // If already logged in (Google), redirect to app
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.isAnonymous) {
         navigate('/app');
+      } else if (!user) {
+        // Sign in anonymously as a fallback for TV sessions and basic usage
+        try {
+          await signInAnonymously(auth);
+        } catch (err) {
+          devError("Anon Sign-in Error:", err);
+        }
+        setIsAuthChecking(false);
       } else {
         setIsAuthChecking(false);
       }
@@ -107,7 +115,20 @@ export function LandingPage() {
   };
 
   const handleTVLogin = async () => {
-    const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // Ensure we have a user identity (either anonymous or Google)
+    let currentUid = auth.currentUser?.uid;
+    
+    // If not signed in at all (rare but possible), try to sign in anonymously now
+    if (!currentUid) {
+      try {
+        const anon = await signInAnonymously(auth);
+        currentUid = anon.user.uid;
+      } catch (err) {
+        currentUid = deviceId;
+      }
+    }
+
+    const sessionId = currentUid || deviceId;
     setTvSessionId(sessionId);
     setIsTVModalOpen(true);
 
@@ -116,7 +137,7 @@ export function LandingPage() {
       await setDoc(doc(db, 'tv_sessions', sessionId), {
         deviceId: deviceId,
         status: 'waiting',
-        currentAnonUid: deviceId, // Use deviceId as fallback identity if anon is disabled
+        currentAnonUid: sessionId, 
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp()
       });
@@ -378,12 +399,6 @@ export function LandingPage() {
                 title: t.feat2_title,
                 desc: t.feat2_desc,
                 color: "bg-emerald-50 text-emerald-600"
-              },
-              {
-                icon: <Sprout size={32} />,
-                title: t.feat3_title,
-                desc: t.feat3_desc,
-                color: "bg-amber-50 text-amber-600"
               },
               {
                 icon: <Users size={32} />,

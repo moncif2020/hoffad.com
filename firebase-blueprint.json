@@ -34,7 +34,6 @@
         "photoURL": { "type": "string", "format": "uri" },
         "xp": { "type": "number" },
         "coins": { "type": "number" },
-        "donations": { "type": "number" },
         "totalScore": { "type": "number" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }

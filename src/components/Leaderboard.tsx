@@ -10,7 +10,6 @@ interface LeaderboardUser {
   photoURL: string;
   xp: number;
   coins: number;
-  donations: number;
   totalScore: number;
   countryCode?: string;
 }
@@ -21,7 +20,7 @@ interface LeaderboardProps {
   t: any;
 }
 
-type SortType = 'totalScore' | 'xp' | 'donations';
+type SortType = 'totalScore' | 'xp';
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => {
   const [activeTab, setActiveTab] = useState<SortType>('totalScore');
@@ -66,7 +65,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
           photoURL: data.photoURL || '',
           xp: data.xp || 0,
           coins: data.coins || 0,
-          donations: data.donations || 0,
           totalScore: data.totalScore || 0,
           countryCode: data.countryCode || '',
         });
@@ -114,7 +112,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
     switch (activeTab) {
       case 'totalScore': return <Trophy className="w-4 h-4 text-emerald-500" />;
       case 'xp': return <Star className="w-4 h-4 text-yellow-500" />;
-      case 'donations': return <Heart className="w-4 h-4 text-red-500" />;
     }
   };
 
@@ -122,7 +119,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
     switch (activeTab) {
       case 'totalScore': return user.totalScore;
       case 'xp': return user.xp;
-      case 'donations': return user.donations;
     }
   };
 
@@ -149,7 +145,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
 
         {/* Tabs */}
         <div className="bg-white/40 backdrop-blur-sm p-1 rounded-2xl flex gap-1 mb-6 shadow-sm ring-1 ring-white/50">
-          {(['totalScore', 'xp', 'donations'] as SortType[]).map((tab) => (
+          {(['totalScore', 'xp'] as SortType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -161,8 +157,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
             >
               {tab === 'totalScore' && <Trophy className="w-4 h-4" />}
               {tab === 'xp' && <Star className="w-4 h-4" />}
-              {tab === 'donations' && <Heart className="w-4 h-4" />}
-              {tab === 'totalScore' ? (lang === 'ar' ? "الترتيب الذكي" : "Smart Rank") : tab === 'xp' ? (t.xpShort || "XP") : (t.donations || "صدقات")}
+              {tab === 'totalScore' ? (lang === 'ar' ? "الترتيب الذكي" : "Smart Rank") : (t.xpShort || "XP")}
             </button>
           ))}
         </div>
@@ -232,7 +227,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack, lang, t }) => 
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
                         {getMetricIcon()}
-                        <span>{getMetricValue(user)} {activeTab === 'xp' ? (t.xpShort || "XP") : activeTab === 'totalScore' ? (lang === 'ar' ? "نقطة إتقان" : "Points") : (t.donations || "صدقات")}</span>
+                        <span>{getMetricValue(user)} {activeTab === 'xp' ? (t.xpShort || "XP") : (lang === 'ar' ? "نقطة إتقان" : "Points")}</span>
                       </div>
                     </div>
                   </div>
