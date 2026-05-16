@@ -2,6 +2,10 @@
   "name": "حفاظ Hoffad",
   "description": "الإصدار 3.0.0: تطبيق تفاعلي لحفظ القرآن والدروس، مع تحسينات شاملة لواجهة المستخدم ودعم كامل لأجهزة التلفاز الذكية.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

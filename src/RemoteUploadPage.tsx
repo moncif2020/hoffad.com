@@ -59,7 +59,7 @@ export function RemoteUploadPage() {
 
   // QR Scanner Logic
   useEffect(() => {
-    if (!deviceId && !isAuthChecking && user) {
+    if (!deviceId && !isAuthChecking) {
       const scanner = new Html5QrcodeScanner(
         "reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
