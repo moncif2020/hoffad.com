@@ -2,12 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    function isSignedIn() {
-      return request.auth != null;
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function isValidUrl(url) {
+      return url is string && url.size() <= 2048 && url.matches('^https?://.*');
     }
 
     function isOwner(userId) {
@@ -15,128 +25,119 @@ service cloud.firestore {
     }
 
     function isLinked(userId) {
-      // Allow an anonymous computer/TV session to access data IF explicitly linked via tv_sessions
-      // We use request.auth.uid as the document ID for the session on the computer side
+      // Allow an anonymous computer/TV session to access data if explicitly linked
+      // sessionId matches the anonymous TV's request.auth.uid
       return exists(/databases/$(database)/documents/tv_sessions/$(request.auth.uid)) && 
              get(/databases/$(database)/documents/tv_sessions/$(request.auth.uid)).data.get('uid', '') == userId &&
              get(/databases/$(database)/documents/tv_sessions/$(request.auth.uid)).data.status == 'linked';
     }
 
-    function isValidId(id) {
-      return id is string && 
-             id.size() > 0 &&
-             id.size() <= 128 && 
-             id.matches('^[a-zA-Z0-9_\\-]+$');
+    // --- Entity Validations ---
+    function isValidProfile() {
+      let data = incoming();
+      return data.keys().hasAll(['displayName', 'updatedAt']) &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 2048) &&
+             (data.get('countryCode', '') is string && data.get('countryCode', '').size() <= 10) &&
+             data.updatedAt == request.time;
     }
 
-    function isValidUrl(url) {
-      return url is string && 
-             url.size() >= 10 &&
-             url.size() <= 2048 &&
-             (url.matches('^https://.*') || url.matches('^http://.*'));
+    function isValidLesson() {
+      let data = incoming();
+      return data.keys().hasAll(['title', 'text', 'type', 'createdAt']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.text is string && data.text.size() <= 100000 &&
+             data.type in ['quran', 'custom'] &&
+             data.createdAt <= request.time;
     }
 
-    function isValidProfileData(data) {
-      return data.displayName is string &&
-             data.displayName.size() > 0 &&
-             data.displayName.size() <= 255 &&
-             data.photoURL is string &&
-             data.photoURL.size() <= 2048;
+    function isValidTVSession() {
+      let data = incoming();
+      return data.keys().hasAll(['status', 'deviceId', 'updatedAt']) &&
+             data.status in ['waiting', 'linked', 'active'] &&
+             isValidId(data.deviceId) &&
+             data.updatedAt == request.time;
     }
 
-    function isValidRemoteUpload(data) {
+    function isValidRemoteUpload() {
+      let data = incoming();
       return data.keys().hasAll(['deviceId', 'anonUid', 'type', 'url', 'createdAt', 'userId']) &&
              isValidId(data.deviceId) &&
              isValidId(data.anonUid) &&
              data.type in ['image', 'audio', 'video'] &&
              isValidUrl(data.url) &&
-             data.userId is string &&
-             data.userId.size() > 0 &&
-             data.createdAt is timestamp &&
-             data.createdAt <= request.time;
+             data.userId == request.auth.uid &&
+             data.createdAt == request.time;
     }
 
-    function isValidTVSession(data) {
-      return data.keys().hasAll(['status', 'deviceId', 'updatedAt']) &&
-             data.status in ['waiting', 'linked', 'active'] &&
-             isValidId(data.deviceId) &&
-             data.updatedAt is timestamp &&
-             (data.get('currentAnonUid', '') is string);
-    }
+    // --- Rules ---
 
     match /users/{userId} {
-      // Allow anyone to see profiles (necessary for leaderboard and public identification)
-      allow get: if isValidId(userId);
-      allow list: if true;
+      // Secure List Query: Can only see your own profile or profiles of users you are linked to
+      allow list: if isSignedIn() && (request.auth.uid == userId || isLinked(userId));
       
-      allow create: if isOwner(userId) &&
-                       (
-                         !request.resource.data.keys().hasAny(['xp']) || 
-                         request.resource.data.xp is number
-                       ) &&
-                       (
-                         !request.resource.data.keys().hasAny(['coins']) || 
-                         request.resource.data.coins is number
-                       ) &&
-                       (
-                         !request.resource.data.keys().hasAny(['totalScore']) ||
-                         request.resource.data.totalScore is number
-                       );
+      // Profiles are only readable by owner or linked TV
+      allow get: if isOwner(userId);
       
-      allow update: if isOwner(userId) &&
-                       (
-                         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt'])
-                       );
+      allow create: if isOwner(userId) && isValidProfile();
       
-      allow delete: if isOwner(userId);
+      allow update: if isOwner(userId) && 
+                       isValidProfile() && 
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'xp', 'coins', 'totalScore', 'countryCode', 'updatedAt']);
+      
+      allow delete: if false; // Profiles shouldn't be deleted easily
 
       match /lessons/{lessonId} {
-        // Lessons are strictly private
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidLesson();
+        allow update: if isOwner(userId) && 
+                         isValidLesson() && 
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'text', 'type', 'audioUrl', 'lang', 'updatedAt']);
+        allow delete: if isOwner(userId);
       }
     }
 
+    match /tv_sessions/{sessionId} {
+      allow get: if isValidId(sessionId) && (
+        !isSignedIn() || // Allow TV to check its own session status before it has fully linked
+        request.auth.uid == sessionId || // TV checking its own session
+        resource.data.get('uid', '') == request.auth.uid // Phone checking the session it scanned
+      );
+
+      // Initialization (Waiting for scan)
+      allow create: if isValidId(sessionId) && 
+                       isValidTVSession() && 
+                       incoming().status == 'waiting';
+
+      // Updates (Linking or Heartbeats)
+      allow update: if isValidTVSession() && (
+        // Action: Phone Linking
+        (incoming().status == 'linked' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'linkedAt', 'status', 'updatedAt']) &&
+         isSignedIn() && request.auth.token.email_verified == true) ||
+        // Action: TV Heartbeat
+        (incoming().status in ['waiting', 'active'] && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'status']) &&
+         request.auth.uid == sessionId)
+      );
+
+      allow delete: if (resource.data.uid == request.auth.uid || request.auth.uid == sessionId);
+    }
+
     match /uploads/{uploadId} {
-      // Allow getting your own or viewing by anonUid (the TV)
-      allow get: if true; // Safe because IDs are randomized and strictly queried
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.anonUid == request.auth.uid
+      );
       
       allow list: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
-        resource.data.get('anonUid', '') == request.auth.uid
+        resource.data.anonUid == request.auth.uid
       );
 
       allow create: if isSignedIn() && 
-                       isValidRemoteUpload(request.resource.data) &&
-                       request.resource.data.userId == request.auth.uid;
-      
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      
-      allow update: if false;
-    }
-
-    match /tv_sessions/{sessionId} {
-      allow get: if isValidId(sessionId);
-      allow list: if false;
-
-      // Allow initialization even without sign-in if anonymous is disabled
-      allow create: if isValidTVSession(request.resource.data);
-      
-      allow update: if true; // Linked via sessionId
-      
-      allow delete: if isSignedIn() && (resource.data.get('uid', '') == request.auth.uid);
-    }
-
-    match /pairings/{deviceId} {
-      allow get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
-
-      allow create: if isSignedIn() &&
-                       isValidId(deviceId) &&
-                       request.resource.data.userId == request.auth.uid &&
-                       request.resource.data.deviceId == deviceId;
-      
-      allow update: if isSignedIn() &&
-                       resource.data.userId == request.auth.uid &&
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'deviceId']);
+                       isValidRemoteUpload() && 
+                       incoming().userId == request.auth.uid;
       
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }

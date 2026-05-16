@@ -1210,7 +1210,8 @@ export default function App() {
       return;
     }
 
-    const currentUid = auth.currentUser.uid;
+    const sessionUid = localStorage.getItem('hoffad_session_uid');
+    const currentUid = sessionUid || auth.currentUser.uid;
     
     // 1. Profile Listener
     const profileUnsubscribe = onSnapshot(doc(db, 'users', currentUid), (snapshot) => {
