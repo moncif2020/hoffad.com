@@ -72,28 +72,19 @@ service cloud.firestore {
 
     // --- Rules ---
 
+    // --- Users & Profiles & Leaderboard ---
     match /users/{userId} {
-      // Secure List Query: Can only see your own profile or profiles of users you are linked to
-      allow list: if isSignedIn() && (request.auth.uid == userId || isLinked(userId));
+      // Allow reading profiles so leaderboard rankings and user scores can be displayed
+      allow read: if true;
       
-      // Profiles are only readable by owner or linked TV
-      allow get: if isOwner(userId);
+      allow create: if isOwner(userId);
       
-      allow create: if isOwner(userId) && isValidProfile();
-      
-      allow update: if isOwner(userId) && 
-                       isValidProfile() && 
-                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'xp', 'coins', 'totalScore', 'countryCode', 'updatedAt']);
+      allow update: if isOwner(userId);
       
       allow delete: if false; // Profiles shouldn't be deleted easily
 
       match /lessons/{lessonId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidLesson();
-        allow update: if isOwner(userId) && 
-                         isValidLesson() && 
-                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'text', 'type', 'audioUrl', 'lang', 'updatedAt']);
-        allow delete: if isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
     }
 
