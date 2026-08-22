@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Info, Download, CheckCircle2, Search, X, Headphones, Play, Loader2, Square, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Download, CheckCircle2, Search, X, Headphones, Play, Loader2, Square, Eye, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import quranMetadata from '../data/quran-metadata.json';
 import { useAudio } from '../AudioContext';
 import { fetchAyahs, getAudioUrl, QURAN_SURAHS } from '../lib/quran';
 import { CustomSelect } from './CustomSelect';
 import { QuranSearchInline } from './QuranSearchInline';
+import { ShareAchievementModal } from './ShareAchievementModal';
 
 const MushafHeader = ({ surahName, surahEnglish, lang }: { surahName: string, surahEnglish: string, lang: string }) => (
   <div className="w-full flex items-center justify-between px-6 py-2 bg-transparent pointer-events-none select-none z-max" dir="rtl">
@@ -74,6 +75,7 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
   const [selectedAyah, setSelectedAyah] = useState(1);
   const [isTextSearchOpen, setIsTextSearchOpen] = useState(false);
   const [focusedAyah, setFocusedAyah] = useState<{surah: number, ayah: number} | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   const totalPages = 604;
 
@@ -627,6 +629,14 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
           >
             <Search className="w-5 h-5 sm:w-8 sm:h-8" />
           </button>
+
+          <button
+            onClick={() => setIsShareOpen(true)}
+            className="p-1 sm:p-3.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 transition-all focus:ring-2 focus:ring-emerald-500 outline-none"
+            title={lang === 'ar' ? "مشاركة إنجاز الورد" : "Share Quran progress"}
+          >
+            <Share2 className="w-5 h-5 sm:w-8 sm:h-8" />
+          </button>
  
           <button
             onClick={isPlaying ? stopAudio : () => listenToPage()}
@@ -717,6 +727,16 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
           </button>
         )}
       </div>
+
+      {/* Share Achievement Modal */}
+      <ShareAchievementModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        lang={lang}
+        surahName={pageMeta.surahName ? `سورة ${pageMeta.surahName}` : `صفحة ${currentPage}`}
+        ayahRange={`الصفحة ${currentPage} (الجزء ${pageMeta.juz})`}
+        defaultTitle="إنجاز تلاوة ورد القرآن الكريم"
+      />
     </div>
   );
 }

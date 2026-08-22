@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search } from 'lucide-react';
+import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search, Share2, Award } from 'lucide-react';
 import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, downloadFullQuranAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
 import { MushafViewer } from './components/MushafViewer';
 import { CustomSelect } from './components/CustomSelect';
@@ -15,6 +15,7 @@ import { diff_match_patch } from 'diff-match-patch';
 import { useAudio } from './AudioContext';
 import { useCallback } from 'react';
 import { AuthModal } from './components/AuthModal';
+import { ShareAchievementModal } from './components/ShareAchievementModal';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { db, auth, storage, googleProvider } from './firebase';
@@ -1173,6 +1174,13 @@ export default function App() {
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareModalConfig, setShareModalConfig] = useState<{
+    surahName?: string;
+    ayahRange?: string;
+    defaultTitle?: string;
+    defaultText?: string;
+  }>({});
   const [deviceId] = useState(() => {
     const saved = localStorage.getItem('hoffad_device_id');
     if (saved) return saved;
@@ -1872,8 +1880,25 @@ export default function App() {
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 bg-white border-2 border-emerald-500 transition-all focus:ring-2 focus:ring-emerald-500 shadow-sm outline-none rounded-full"
+            title={lang === 'ar' ? 'تغيير المظهر' : 'Toggle Theme'}
           >
             {isDarkMode ? <Sun size={14} className="text-amber-500 sm:size-4" /> : <Moon size={14} className="sm:size-4" />}
+          </button>
+
+          {/* Share Achievement Card Button */}
+          <button
+            onClick={() => {
+              setShareModalConfig({
+                surahName: 'سورة الفاتحة',
+                ayahRange: '١-٧'
+              });
+              setIsShareModalOpen(true);
+            }}
+            className="flex items-center gap-1 sm:gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-2 border-emerald-500 font-bold py-1 px-2.5 sm:px-3.5 rounded-full text-[10px] sm:text-xs transition-all shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            title={lang === 'ar' ? 'مشاركة بطاقة الإنجاز' : 'Share Achievement Card'}
+          >
+            <Share2 size={13} className="text-emerald-600" />
+            <span className="hidden sm:inline">{lang === 'ar' ? 'مشاركة الإنجاز' : 'Share Card'}</span>
           </button>
           
           <div className="flex items-center gap-1 sm:gap-2">
@@ -1959,6 +1984,21 @@ export default function App() {
                 >
                   <Mic size={22} className={view === 'recorder' ? 'text-emerald-600' : 'text-emerald-500'} />
                   <span>{t[lang].recitationRecorder}</span>
+                </button>
+
+                <button 
+                  onClick={() => { 
+                    setShareModalConfig({
+                      surahName: 'سورة الفاتحة',
+                      ayahRange: '١-٧'
+                    });
+                    setIsShareModalOpen(true);
+                    setIsSidebarOpen(false);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-xl transition-all w-full text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <Share2 size={22} className="text-emerald-600" />
+                  <span>{lang === 'ar' ? 'مشاركة بطاقة الإنجاز' : 'Share Achievement Card'}</span>
                 </button>
 
                 <button 
@@ -2104,6 +2144,20 @@ export default function App() {
         onSuccess={() => setIsAuthModalOpen(false)}
         lang={lang}
         initialMode={authModalMode}
+      />
+
+      {/* Share Achievement Card Modal */}
+      <ShareAchievementModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        lang={lang}
+        userName={user?.displayName || (lang === 'ar' ? 'حافظ القرآن' : 'Quran Reciter')}
+        userScore={totalScore}
+        userXp={xp}
+        surahName={shareModalConfig.surahName}
+        ayahRange={shareModalConfig.ayahRange}
+        defaultTitle={shareModalConfig.defaultTitle}
+        defaultText={shareModalConfig.defaultText}
       />
 
       {/* Hidden constant video loop to keep TV active on older systems (Fallback) */}
