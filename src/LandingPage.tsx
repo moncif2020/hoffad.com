@@ -12,6 +12,7 @@ import { auth, googleProvider, db } from './firebase';
 import { safeJson } from './lib/quran';
 import { signInWithPopup, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, deleteDoc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { AuthModal } from './components/AuthModal';
 
 export function LandingPage() {
   const [lang, setLang] = useState('ar');
@@ -19,6 +20,8 @@ export function LandingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isTVModalOpen, setIsTVModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [tvSessionId, setTvSessionId] = useState<string | null>(null);
   const [deviceId] = useState<string>(() => {
     const saved = localStorage.getItem('hoffad_device_id');
@@ -57,7 +60,7 @@ export function LandingPage() {
     document.documentElement.dir = currentLang.dir;
     document.documentElement.lang = lang;
 
-    // If already logged in (Google), redirect to app
+    // If already logged in (Google/Email), redirect to app
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.isAnonymous) {
         navigate('/app');
@@ -76,42 +79,13 @@ export function LandingPage() {
     return () => unsubscribe();
   }, [lang, t, currentLang, navigate]);
 
-  const handleStart = async () => {
-    // If we're already checking or loading, ignore
-    if (isLoading || isAuthChecking) return;
-
-    // 1. Check if user is ALREADY logged in before showing a popup
+  const handleStart = (preferredMode: 'signin' | 'signup' = 'signin') => {
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
       navigate('/app');
       return;
     }
-
-    setIsLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-      navigate('/app');
-    } catch (error: any) {
-      devError("Login Error:", error);
-      if (error.code === 'auth/internal-error' || error.code === 'auth/network-request-failed') {
-        // If it's a TV or blocked user agent, suggest TV login
-        setIsTVModalOpen(true);
-        handleTVLogin();
-        
-        // Also show a more descriptive alert if they aren't on a TV
-        const isTV = /SmartTV|Tizen|WebOS|AppleTV|Roku|FireTV/i.test(navigator.userAgent);
-        if (!isTV) {
-          alert(lang === 'ar' 
-            ? "حدث خطأ داخلي. يرجى التأكد من:\n1. السماح بالنوافذ المنبثقة (Popups).\n2. إضافة هذا النطاق إلى 'Authorized Domains' في Firebase Console.\n3. تفعيل ملفات تعريف الارتباط للطرف الثالث." 
-            : "Internal error occurred. Please ensure:\n1. Popups are allowed.\n2. This domain is added to 'Authorized Domains' in Firebase Console.\n3. Third-party cookies are enabled.");
-        }
-      } else if (error.code === 'auth/popup-blocked') {
-        alert(lang === 'ar' ? "تم حظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة للموقع." : "Popup blocked. Please allow popups for this site.");
-      } else {
-        alert(lang === 'ar' ? "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى." : "Login failed. Please try again.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    setAuthModalMode(preferredMode);
+    setIsAuthModalOpen(true);
   };
 
   const handleTVLogin = async () => {
@@ -277,14 +251,14 @@ export function LandingPage() {
               </button>
 
               <button 
-                onClick={handleStart}
+                onClick={() => handleStart('signin')}
                 className="text-slate-600 hover:text-emerald-600 font-medium transition-colors hidden md:block"
               >
                 {t.nav_login}
               </button>
               
               <button 
-                onClick={handleStart}
+                onClick={() => handleStart('signup')}
                 disabled={isLoading}
                 className="bg-emerald-600 text-white px-4 sm:px-5 py-2 rounded-full font-medium hover:bg-emerald-700 transition-colors shadow-sm hover:shadow-md flex items-center gap-2 text-sm sm:text-base disabled:opacity-50"
               >
@@ -320,7 +294,7 @@ export function LandingPage() {
             </p>
             <div className={`flex flex-col sm:flex-row gap-4 justify-center ${isRtl ? 'lg:justify-start' : 'lg:justify-start'}`}>
               <button 
-                onClick={handleStart}
+                onClick={() => handleStart('signup')}
                 disabled={isLoading}
                 className="bg-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-emerald-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 disabled:opacity-50"
               >
@@ -477,7 +451,7 @@ export function LandingPage() {
           <h2 className="text-3xl sm:text-5xl font-bold text-white mb-6">{t.cta_title}</h2>
           <p className="text-xl text-emerald-100 mb-10">{t.cta_desc}</p>
           <button 
-            onClick={handleStart}
+            onClick={() => handleStart('signup')}
             disabled={isLoading}
             className={`inline-flex items-center gap-2 bg-white text-emerald-700 px-8 py-4 rounded-full font-bold text-lg hover:bg-emerald-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 disabled:opacity-50 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}
           >
@@ -586,6 +560,15 @@ export function LandingPage() {
           </motion.div>
         </div>
       )}
+
+      {/* Authentication Modal (Google & Email/Password Choice) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => navigate('/app')}
+        lang={lang}
+        initialMode={authModalMode}
+      />
     </div>
   );
 }

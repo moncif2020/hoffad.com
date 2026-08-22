@@ -258,7 +258,13 @@ export function RemoteUploadPage() {
 
           {user ? (
             <div className="flex items-center justify-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-              <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-emerald-500" referrerPolicy="no-referrer" />
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-emerald-500 object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs border border-emerald-500">
+                  {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                </div>
+              )}
               <div className="text-left">
                 <p className="text-xs font-bold text-slate-800">{user.displayName}</p>
                 <button onClick={() => signOut(auth)} className="text-[10px] text-slate-500 hover:text-red-500 font-bold uppercase">Logout</button>

@@ -14,12 +14,13 @@ import { ScoreService } from './services/scoreService';
 import { diff_match_patch } from 'diff-match-patch';
 import { useAudio } from './AudioContext';
 import { useCallback } from 'react';
+import { AuthModal } from './components/AuthModal';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { db, auth, storage, googleProvider } from './firebase';
 import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, doc, setDoc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
-import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithCustomToken } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, type User } from 'firebase/auth';
 
 // --- Alignment and Result Types ---
 type SegmentType = 'correct' | 'substitution' | 'deletion' | 'insertion' | 'swapped';
@@ -1170,6 +1171,8 @@ export default function App() {
   const { isPlaying, playlist, currentTrackIndex, pause, resume, currentTime, duration, sessionTime, stop, overallProgress } = useAudio();
 
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [deviceId] = useState(() => {
     const saved = localStorage.getItem('hoffad_device_id');
     if (saved) return saved;
@@ -1327,7 +1330,10 @@ export default function App() {
       }
 
       // No more anonymous login. Just finish checking.
-      if (isMounted) setIsAuthChecking(false);
+      if (isMounted) {
+        setUser(null);
+        setIsAuthChecking(false);
+      }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -1347,25 +1353,9 @@ export default function App() {
     };
   }, [navigate]);
 
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error("Login Error:", error);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert(lang.startsWith('ar') 
-          ? "خطأ: النطاق غير مصرح به. يرجى إضافة 'hoffad.vercel.app' إلى قائمة 'Authorized domains' في إعدادات (Authentication) داخل Firebase Console." 
-          : "Error: Unauthorized domain. Please add 'hoffad.vercel.app' to the 'Authorized domains' list in the Firebase Console Authentication settings.");
-      } else if (error.code === 'auth/internal-error' || error.code === 'auth/network-request-failed') {
-        alert(lang.startsWith('ar') 
-          ? "خطأ داخلي في تسجيل الدخول. يرجى التأكد من السماح بالنوافذ المنبثقة وإضافة النطاق الحالي إلى قائمة النطاقات المصرح بها (Authorized Domains) في Firebase Console." 
-          : "Internal login error. Please ensure popups are allowed and the current domain is added to the Authorized Domains in Firebase Console.");
-      } else if (error.code === 'auth/popup-blocked') {
-        alert(lang.startsWith('ar') ? "تم حظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة للموقع." : "Popup blocked. Please allow popups for this site.");
-      } else {
-        alert(lang.startsWith('ar') ? "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى." : "Login failed. Please try again.");
-      }
-    }
+  const handleLogin = (preferredMode: 'signin' | 'signup' = 'signin') => {
+    setAuthModalMode(preferredMode);
+    setIsAuthModalOpen(true);
   };
 
   const handleLogout = async () => {
@@ -1373,9 +1363,16 @@ export default function App() {
       localStorage.removeItem('hoffad_session_uid');
       localStorage.removeItem('hoffad_session_name');
       localStorage.removeItem('hoffad_session_photo');
+      localStorage.removeItem('hoffad_custom_token');
+      setIsSidebarOpen(false);
+      setUser(null);
       await signOut(auth);
+      navigate('/');
     } catch (error) {
       console.error("Logout Error:", error);
+      setUser(null);
+      setIsSidebarOpen(false);
+      navigate('/');
     }
   };
 
@@ -1562,7 +1559,7 @@ export default function App() {
          <motion.div 
            initial={{ opacity: 0, y: 20 }}
            animate={{ opacity: 1, y: 0 }}
-           className="bg-white p-8 rounded-[40px] shadow-2xl shadow-emerald-100 max-w-sm w-full border border-slate-100"
+           className="bg-white p-8 rounded-[40px] shadow-2xl shadow-emerald-100 max-w-md w-full border border-slate-100"
          >
            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
              <img src="/logo.svg" alt="Logo" className="w-12 h-12" />
@@ -1572,23 +1569,41 @@ export default function App() {
            </h2>
            <p className="text-slate-500 mb-8 leading-relaxed font-medium">
              {lang === 'ar' 
-               ? 'يرجى تسجيل الدخول بحساب Google لحفظ تقدمك والتنافس مع الآخرين.' 
-               : 'Please login with your Google account to save progress and compete with others.'}
+               ? 'سجّل الدخول للمزامنة وحفظ تقدمك والتنافس مع الحفّاظ الآخرين.' 
+               : 'Sign in to sync your progress and compete on the leaderboard.'}
            </p>
            
-           <button 
-             onClick={handleLogin}
-             className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95"
-           >
-             <LogIn size={24} />
-             <span>{lang === 'ar' ? 'تسجيل الدخول عبر Google' : 'Sign in with Google'}</span>
-           </button>
+           <div className="flex flex-col gap-3">
+             <button 
+               onClick={() => handleLogin('signin')}
+               className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95"
+             >
+               <LogIn size={22} />
+               <span>{lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}</span>
+             </button>
+
+             <button 
+               onClick={() => handleLogin('signup')}
+               className="w-full bg-emerald-50 text-emerald-700 font-bold py-4 rounded-2xl border border-emerald-200 hover:bg-emerald-100 transition-all flex items-center justify-center gap-3 active:scale-95"
+             >
+               <Sparkles size={20} />
+               <span>{lang === 'ar' ? 'إنشاء حساب جديد' : 'Create an Account'}</span>
+             </button>
+           </div>
            
            <div className="mt-8 flex items-center justify-center gap-2 text-slate-400 text-xs">
              <ShieldCheck size={14} />
-             <span>{lang === 'ar' ? 'تسجيل آمن عبر Google' : 'Secure sign in via Google'}</span>
+             <span>{lang === 'ar' ? 'تسجيل آمن: عبر Google أو البريد وكلمة المرور' : 'Secure: via Google or Email & Password'}</span>
            </div>
          </motion.div>
+
+         <AuthModal
+           isOpen={isAuthModalOpen}
+           onClose={() => setIsAuthModalOpen(false)}
+           onSuccess={() => setIsAuthModalOpen(false)}
+           lang={lang}
+           initialMode={authModalMode}
+         />
       </div>
     );
   }
@@ -1830,12 +1845,18 @@ export default function App() {
                     {lang === 'ar' ? 'الملف الشخصي' : 'Profile'}
                   </span>
                 </div>
-                <img 
-                  src={user.photoURL || ''} 
-                  alt={user.displayName || ''} 
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-emerald-500 shadow-sm object-cover"
-                  referrerPolicy="no-referrer"
-                />
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt={user.displayName || ''} 
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-emerald-500 shadow-sm object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs border-2 border-emerald-500 shadow-sm">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : <UserIcon size={14} />}
+                  </div>
+                )}
               </button>
             ) : (
               <button 
@@ -1977,12 +1998,18 @@ export default function App() {
                 {user && (
                   <div className="mt-auto pt-4 border-t border-slate-100">
                     <div className="flex items-center gap-3 px-3 mb-4">
-                      <img 
-                        src={user.photoURL || ''} 
-                        alt="" 
-                        className="w-10 h-10 rounded-full border-2 border-emerald-500 shadow-sm"
-                        referrerPolicy="no-referrer"
-                      />
+                      {user.photoURL ? (
+                        <img 
+                          src={user.photoURL} 
+                          alt="" 
+                          className="w-10 h-10 rounded-full border-2 border-emerald-500 shadow-sm object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm border-2 border-emerald-500 shadow-sm">
+                          {user.displayName ? user.displayName.charAt(0).toUpperCase() : <UserIcon size={18} />}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-slate-800 truncate">{user.displayName}</p>
                         <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
@@ -2069,6 +2096,15 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => setIsAuthModalOpen(false)}
+        lang={lang}
+        initialMode={authModalMode}
+      />
 
       {/* Hidden constant video loop to keep TV active on older systems (Fallback) */}
       <video 

@@ -321,12 +321,14 @@ export const RecitationRecorder: React.FC<RecitationRecorderProps> = ({ onBack, 
                        />
                     </div>
 
-                    <audio 
-                      ref={audioRef} 
-                      src={audioUrl} 
-                      onEnded={() => setIsPlaying(false)}
-                      className="hidden" 
-                    />
+                    {audioUrl && (
+                      <audio 
+                        ref={audioRef} 
+                        src={audioUrl} 
+                        onEnded={() => setIsPlaying(false)}
+                        className="hidden" 
+                      />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
