@@ -27,7 +27,7 @@
     },
     "UserProfile": {
       "title": "User Profile",
-      "description": "User statistics and rewards.",
+      "description": "User statistics, subscription, and rewards.",
       "type": "object",
       "properties": {
         "displayName": { "type": "string" },
@@ -35,6 +35,14 @@
         "xp": { "type": "number" },
         "coins": { "type": "number" },
         "totalScore": { "type": "number" },
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["active", "inactive", "canceled"] },
+            "plan": { "type": "string" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+          }
+        },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },

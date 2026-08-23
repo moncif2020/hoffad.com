@@ -138,7 +138,7 @@ export function CustomSelect({ value, onChange, options, className = '', placeho
               filteredOptions.map((option, idx) => (
                 <button
                   key={option.value}
-                  ref={el => optionsRef.current[idx] = el}
+                  ref={el => { optionsRef.current[idx] = el; }}
                   onFocus={() => handleFocus(idx)}
                   className={`w-full text-start p-4 cursor-pointer hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none transition-colors ${value === option.value ? 'bg-emerald-100 text-emerald-800 font-bold' : 'text-slate-700'}`}
                   onClick={() => {

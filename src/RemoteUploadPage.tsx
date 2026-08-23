@@ -183,7 +183,11 @@ export function RemoteUploadPage() {
             setTimeout(() => setStatus('idle'), 3000);
           } catch (err: any) {
             console.error("Finalizing Upload Error:", err);
-            setError(err.message || 'Failed to save upload info');
+            if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
+              setError('ميزة الرفع والاستخراج عن بُعد مخصصة للمشتركين في باقة برو (Hoffad Pro).');
+            } else {
+              setError(err.message || 'Failed to save upload info');
+            }
             setStatus('error');
           }
         }

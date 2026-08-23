@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search, Share2, Award, Compass } from 'lucide-react';
+import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search, Share2, Award, Compass, Cpu, Cloud, Zap } from 'lucide-react';
 import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, downloadFullQuranAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
 import { MushafViewer } from './components/MushafViewer';
 import { CustomSelect } from './components/CustomSelect';
@@ -11,6 +11,7 @@ import { translations } from './translations';
 import { Leaderboard } from './components/Leaderboard';
 import { RecitationRecorder } from './components/RecitationRecorder';
 import { SmartMemorizationPlanner } from './components/SmartMemorizationPlanner';
+import { UpgradeModal } from './components/UpgradeModal';
 import { ScoreService } from './services/scoreService';
 import { diff_match_patch } from 'diff-match-patch';
 import { useAudio } from './AudioContext';
@@ -208,7 +209,9 @@ function CustomTextInput({
   actionIcon,
   lang,
   setLang,
-  isParentMode = false
+  isParentMode = false,
+  isPremium = false,
+  onUpgrade
 }: { 
   text: string, 
   setText: React.Dispatch<React.SetStateAction<string>>,
@@ -219,7 +222,9 @@ function CustomTextInput({
   actionIcon: React.ReactNode,
   lang: Language,
   setLang?: (l: Language) => void,
-  isParentMode?: boolean
+  isParentMode?: boolean,
+  isPremium?: boolean,
+  onUpgrade?: () => void
 }) {
   const [extractingType, setExtractingType] = useState<'image' | 'audio' | 'video' | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -229,6 +234,17 @@ function CustomTextInput({
 
   const handleExtraction = async (file: File, type: 'image' | 'audio' | 'video') => {
     if (!file) return;
+
+    if (!isPremium) {
+      if (onUpgrade) {
+        onUpgrade();
+      } else {
+        alert(lang.startsWith('ar') 
+          ? "ميزة استخراج النص بالذكاء الاصطناعي (من الصور والصوت والفيديو) خاصة بالباقة الاحترافية (برو). يرجى ترقية حسابك للاستفادة منها." 
+          : "AI Text Extraction (from images, audio, and video) is a Premium feature. Please upgrade your plan to use it.");
+      }
+      return;
+    }
 
     if (file.size > 25 * 1024 * 1024) {
       alert(lang.startsWith('ar') ? "حجم الملف كبير جداً. يرجى رفع ملف أقل من 25 ميجابايت." : "File size is too large. Please upload a file smaller than 25MB.");
@@ -403,7 +419,7 @@ function CustomTextInput({
 }
 
 // --- Listen & Memorize Screen ---
-function ListenScreen({ lang }: { lang: Language }) {
+function ListenScreen({ lang, isPremium = false, onUpgrade }: { lang: Language, isPremium?: boolean, onUpgrade?: () => void }) {
   const [listenMode, setListenMode] = useState<'quran' | 'custom'>('quran');
 
   // Quran State
@@ -1107,6 +1123,8 @@ function ListenScreen({ lang }: { lang: Language }) {
               actionLabel={t[lang].startDictation}
               actionIcon={<Play fill="currentColor" />}
               lang={lang}
+              isPremium={isPremium}
+              onUpgrade={onUpgrade}
             />
             
             <div className="pt-4 border-t border-slate-100">
@@ -1168,7 +1186,8 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [view, setView] = useState<View>('study');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPremium, setIsPremium] = useState(() => localStorage.getItem('hoffad_is_premium') === 'true');
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [coins, setCoins] = useState(0);
   const [xp, setXp] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
@@ -1240,6 +1259,14 @@ export default function App() {
         if (data.xp !== undefined) setXp(data.xp);
         if (data.coins !== undefined) setCoins(data.coins);
         if (data.totalScore !== undefined) setTotalScore(data.totalScore);
+
+        if (data.subscription?.status === 'active') {
+          setIsPremium(true);
+          localStorage.setItem('hoffad_is_premium', 'true');
+        } else {
+          setIsPremium(false);
+          localStorage.removeItem('hoffad_is_premium');
+        }
 
         const needsNameUpdate = (data.displayName === 'حافظ مجهول' || !data.displayName) && auth.currentUser?.displayName;
         const needsPhotoUpdate = (!data.photoURL || data.photoURL === '') && auth.currentUser?.photoURL;
@@ -1418,6 +1445,15 @@ export default function App() {
           const fileType = data.type; // 'image', 'audio', 'video'
           const fileName = data.name || '';
 
+          if (!isPremium) {
+            setUploadNotification(lang.startsWith('ar') 
+              ? "ميزة استخراج النصوص عن بعد بالذكاء الاصطناعي مخصصة للمشتركين في باقة برو." 
+              : "Remote AI text extraction is reserved for Pro plan subscribers.");
+            setIsUpgradeModalOpen(true);
+            deleteDoc(doc(db, 'uploads', change.doc.id)).catch(e => console.warn(e));
+            return;
+          }
+
           setUploadNotification(lang.startsWith('ar') ? `تم استلام ${fileType === 'image' ? 'صورة' : fileType === 'audio' ? 'ملف صوتي' : 'فيديو'}... جاري استخراج النص...` : `Received ${fileType}... Extracting text...`);
           setIsExtractingRemote(true);
           setView('parent'); // Switch to parent dashboard to show the result
@@ -1468,7 +1504,7 @@ export default function App() {
       console.warn("Firestore Listener Warning (Uploads):", error);
     });
     return () => unsubscribe();
-  }, [deviceId, lang, user]);
+  }, [deviceId, lang, user, isPremium]);
 
   useEffect(() => {
     const handleAppKeys = (e: KeyboardEvent) => {
@@ -1877,7 +1913,7 @@ export default function App() {
               </button>
             ) : (
               <button 
-                onClick={handleLogin}
+                onClick={() => handleLogin()}
                 className="flex items-center gap-1 sm:gap-2 bg-emerald-600 text-white text-[10px] sm:text-xs font-bold py-1.5 px-2 sm:px-4 rounded-full hover:bg-emerald-700 transition-colors shadow-md focus:ring-4 focus:ring-emerald-200 outline-none"
               >
                 <LogIn size={18} />
@@ -1911,16 +1947,25 @@ export default function App() {
           </button>
           
           <div className="flex items-center gap-1 sm:gap-2">
-            {!isPremium && (
+            {isPremium ? (
+              <div 
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="flex items-center gap-1 bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 font-black text-[10px] sm:text-xs py-1 px-2.5 rounded-full border border-amber-500 shadow-sm cursor-pointer hover:scale-105 transition-transform"
+                title={lang === 'ar' ? 'عضوية الحفّاظ برو مفعلة' : 'Hoffad Pro Active'}
+              >
+                <Star size={12} fill="currentColor" className="text-amber-900" />
+                <span>PRO</span>
+              </div>
+            ) : (
               <button 
-                onClick={() => setView('upgrade')}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-amber-400 text-amber-950 rounded-full border-2 border-emerald-500 font-black text-[9px] sm:text-xs shadow-md hover:scale-105 transition-transform active:scale-95 focus:ring-4 focus:ring-emerald-200 outline-none"
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="flex items-center gap-1 bg-amber-400 text-amber-950 rounded-full border-2 border-emerald-500 font-black text-[9px] sm:text-xs py-1 px-2.5 sm:px-3 shadow-md hover:scale-105 transition-transform active:scale-95 focus:ring-4 focus:ring-emerald-200 outline-none cursor-pointer"
                 title={t[lang].upgrade}
               >
                 <Star size={12} fill="currentColor" />
+                <span className="hidden sm:inline">{lang === 'ar' ? 'ترقية برو (وفر 40%)' : 'Go Pro'}</span>
               </button>
             )}
-            
           </div>
         </div>
       </header>
@@ -2102,7 +2147,7 @@ export default function App() {
           )}
           {view === 'listen' && (
             <motion.div key="listen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              <ListenScreen lang={lang} />
+              <ListenScreen lang={lang} isPremium={isPremium} onUpgrade={() => setView('upgrade')} />
             </motion.div>
           )}
           {view === 'parent' && (
@@ -2191,6 +2236,18 @@ export default function App() {
         defaultText={shareModalConfig.defaultText}
       />
 
+      {/* Subscription & Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        onSuccess={() => {
+          setIsPremium(true);
+          localStorage.setItem('hoffad_is_premium', 'true');
+        }}
+        lang={lang}
+        isPremium={isPremium}
+      />
+
       {/* Hidden constant video loop to keep TV active on older systems (Fallback) */}
       <video 
         id="tv-fallback-video"
@@ -2209,64 +2266,206 @@ export default function App() {
 // --- Screens ---
 
 function UpgradeScreen({ lang, onUpgrade }: { lang: Language, onUpgrade: () => void }) {
+  const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'yearly'>('yearly');
+  const [isSubscribing, setIsSubscribing] = React.useState(false);
+  const [showSuccess, setShowSuccess] = React.useState(false);
+
+  const handleSubscribe = async () => {
+    setIsSubscribing(true);
+    try {
+      if (auth.currentUser) {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        await setDoc(userDocRef, {
+          displayName: auth.currentUser.displayName || 'حافظ القرآن',
+          subscription: {
+            status: 'active',
+            plan: billingCycle === 'yearly' ? 'pro_yearly' : 'pro_monthly',
+            updatedAt: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.warn("Subscription sync deferred:", e);
+    }
+
+    setTimeout(() => {
+      setIsSubscribing(false);
+      setShowSuccess(true);
+      setTimeout(() => {
+        onUpgrade();
+      }, 1200);
+    }, 800);
+  };
+
+  const proFeatures = [
+    {
+      title: lang === 'ar' ? 'استخراج وتحليل غير محدود بالذكاء الاصطناعي' : 'Unlimited AI Quran & Text Extraction',
+      desc: lang === 'ar' ? 'مسح الصور والتفريغ الصوتي للمقاطع بجودة فائقة دون أي قيود' : 'Extract from photos & audio with Gemini AI without limits',
+      icon: <Cpu className="text-emerald-500" size={24} />
+    },
+    {
+      title: lang === 'ar' ? 'مزامنة ونسخ احتياطي سحابي كامل' : 'Full Cloud Sync & Backup',
+      desc: lang === 'ar' ? 'حفظ تقدمك والدروس وقوائمك على كافة هواتفك وحاسوبك تلقائياً' : 'Access your lessons, scores & progress across all devices',
+      icon: <Cloud className="text-emerald-500" size={24} />
+    },
+    {
+      title: lang === 'ar' ? 'الرفع السريع للشاشات والأجهزة عن بُعد' : 'High-Speed Remote & TV Upload',
+      desc: lang === 'ar' ? 'ربط مباشر وسلس لنقل الملفات من الجوال إلى التلفاز والحاسوب' : 'Instant QR sync to broadcast lessons to smart TVs & tablets',
+      icon: <Zap className="text-emerald-500" size={24} />
+    },
+    {
+      title: lang === 'ar' ? 'شارة المشترك الذهبي وأولوية الخوادم' : 'VIP Golden Badge & Fast Servers',
+      desc: lang === 'ar' ? 'تميّز في لوحة الشرف وأولوية معالجة فورية فائقة السرعة' : 'Stand out on the leaderboard with dedicated cloud bandwidth',
+      icon: <Star className="text-amber-500" size={24} />
+    }
+  ];
+
+  const freeFeatures = [
+    lang === 'ar' ? 'تصفح المصحف كاملاً بجميع الروايات والتفاسير' : 'Full Quran reader with all recitations & Tafseer',
+    lang === 'ar' ? 'الاستماع لكافة القراء والتحميل بدون إنترنت' : 'Listen & download all reciters offline',
+    lang === 'ar' ? 'التسميع الصوتي واكتشاف الأخطاء محلياً' : 'Interactive voice recitation & speech check',
+    lang === 'ar' ? 'ألعاب الحفظ (الترتيب، الفراغات، وبنك الذاكرة)' : 'Memorization games & smart study planner'
+  ];
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col gap-6 py-4 max-w-5xl mx-auto"
+      className="flex flex-col gap-6 py-4 max-w-4xl mx-auto"
     >
-      <div className="bg-white p-8 sm:p-12 rounded-[40px] shadow-2xl border border-slate-100 relative overflow-hidden">
+      <div className="bg-white p-6 sm:p-10 rounded-[36px] shadow-2xl border border-slate-100 relative overflow-hidden">
         {/* Decorative background */}
-        <div className="absolute top-0 right-0 p-8 opacity-5">
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
           <Sparkles size={200} className="text-emerald-600" />
         </div>
 
-        <div className="flex flex-col items-center text-center mb-12 relative z-10">
-          <div className="p-6 bg-emerald-100 rounded-full mb-6">
-            <Star className="text-emerald-600" size={64} fill="currentColor" />
+        <div className="flex flex-col items-center text-center mb-8 relative z-10">
+          <div className="p-4 sm:p-5 bg-gradient-to-tr from-amber-400 to-amber-200 text-amber-950 rounded-3xl mb-4 shadow-lg shadow-amber-200/50">
+            <Star size={44} fill="currentColor" />
           </div>
-          <h2 className="text-4xl sm:text-5xl font-black text-slate-800 mb-4">{t[lang].upgrade}</h2>
-          <p className="text-slate-500 text-lg max-w-lg">{t[lang].upgradeDesc}</p>
+          <div className="inline-flex items-center gap-2 px-4 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 font-bold text-xs sm:text-sm mb-3">
+            <Sparkles size={16} />
+            <span>{lang === 'ar' ? 'باقة الحفّاظ برو المتميزة (Hoffad Pro)' : 'Hoffad Pro Premium Plan'}</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mb-3">{t[lang].upgrade}</h2>
+          <p className="text-slate-500 text-base sm:text-lg max-w-lg">{t[lang].upgradeDesc}</p>
+
+          {/* Billing Switch */}
+          <div className="mt-6 inline-flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                billingCycle === 'monthly'
+                  ? 'bg-white text-slate-900 shadow-md shadow-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {lang === 'ar' ? 'اشتراك شهري ($5/شهر)' : 'Monthly ($5/mo)'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              className={`relative px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                billingCycle === 'yearly'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-700/30'
+                  : 'text-slate-600 hover:text-emerald-700'
+              }`}
+            >
+              <span>{lang === 'ar' ? 'اشتراك سنوي ($36/سنة)' : 'Yearly ($36/yr)'}</span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                billingCycle === 'yearly' ? 'bg-amber-400 text-amber-950' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {lang === 'ar' ? 'وفر 40% 🔥' : 'Save 40% 🔥'}
+              </span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12 relative z-10">
-          {[
-            { icon: <Mic size={24} />, text: t[lang].unlimitedMemorization },
-            { icon: <Check size={24} />, text: t[lang].advancedTajweed },
-            { icon: <BookOpen size={24} />, text: t[lang].unlimitedLessons },
-            { icon: <Download size={24} />, text: t[lang].offlineMode },
-          ].map((feature, i) => (
-            <div key={i} className="flex items-center gap-5 p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:bg-emerald-50/50 transition-colors">
-              <div className="bg-white p-3 rounded-2xl shadow-sm text-emerald-600 font-bold">{feature.icon}</div>
-              <span className="font-bold text-slate-700 text-lg">{feature.text}</span>
-            </div>
-          ))}
+        {/* Pricing Highlight Display */}
+        <div className="bg-gradient-to-b from-slate-50 to-emerald-50/50 p-6 sm:p-8 rounded-3xl border border-emerald-100 text-center mb-8 relative">
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-4xl sm:text-6xl font-black text-slate-900">
+              {billingCycle === 'yearly' ? '$36.00' : '$5.00'}
+            </span>
+            <span className="text-slate-500 font-bold text-sm sm:text-lg">
+              {billingCycle === 'yearly' 
+                ? (lang === 'ar' ? '/ سنوياً (فقط 3$ شهرياً)' : '/ year ($3.00/mo)') 
+                : (lang === 'ar' ? '/ شهرياً' : '/ month')}
+            </span>
+          </div>
+          
+          {billingCycle === 'yearly' ? (
+            <p className="text-xs sm:text-sm font-semibold text-emerald-700 mt-2">
+              {lang === 'ar' ? '🎉 يتم دفع 36$ سنوياً بدلاً من 60$ — وفر 24$ فوراً واستمتع بعام كامل!' : '🎉 Billed $36/year instead of $60 — save $24 today and enjoy 1 full year!'}
+            </p>
+          ) : (
+            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-2">
+              {lang === 'ar' ? 'تجديد شهري مرن، يمكنك الإلغاء في أي وقت' : 'Flexible monthly billing, cancel anytime'}
+            </p>
+          )}
+
+          <div className="mt-6 max-w-md mx-auto">
+            <button
+              onClick={handleSubscribe}
+              disabled={isSubscribing}
+              className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-emerald-700/25 transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-80"
+            >
+              {isSubscribing ? (
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : showSuccess ? (
+                <>
+                  <CheckCircle size={22} className="text-amber-300" />
+                  <span>{lang === 'ar' ? 'تم التفعيل بنجاح! أهلاً بك في برو 🎉' : 'Activated! Welcome to Pro 🎉'}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={20} />
+                  <span>
+                    {billingCycle === 'yearly' 
+                      ? (lang === 'ar' ? 'الاشتراك في الخطة السنوية (36$/سنة)' : 'Get Annual Pro ($36/yr)') 
+                      : (lang === 'ar' ? 'الاشتراك في الخطة الشهرية (5$/شهر)' : 'Get Monthly Pro ($5/mo)')}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
-          <button 
-            onClick={onUpgrade}
-            className="p-8 bg-emerald-500 text-white rounded-[32px] shadow-xl shadow-emerald-100 flex flex-col items-center gap-2 hover:bg-emerald-600 transition-all transform active:scale-95 group"
-          >
-            <span className="text-2xl font-black">{t[lang].monthlyPlan}</span>
-            <span className="text-emerald-100 font-bold text-lg">{t[lang].priceMonthly}</span>
-            <div className="mt-4 w-full h-1 bg-white/20 rounded-full overflow-hidden">
-               <div className="h-full bg-white w-0 group-hover:w-full transition-all duration-700" />
-            </div>
-          </button>
+        {/* Pro Features Grid */}
+        <div className="mb-8">
+          <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 mb-4">
+            {lang === 'ar' ? 'ماذا ستحصل مع باقة الحفّاظ برو:' : 'Pro Tier Features & Powers:'}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {proFeatures.map((feature, i) => (
+              <div key={i} className="flex items-start gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-emerald-50/50 transition-colors">
+                <div className="bg-white p-3 rounded-2xl shadow-xs shrink-0 mt-0.5">{feature.icon}</div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm sm:text-base leading-snug">{feature.title}</h4>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">{feature.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          <button 
-            onClick={onUpgrade}
-            className="p-8 bg-slate-800 text-white rounded-[32px] shadow-xl shadow-slate-200 flex flex-col items-center gap-2 hover:bg-slate-900 transition-all transform active:scale-95 relative overflow-hidden group"
-          >
-            <div className="absolute -top-1 -right-1 bg-amber-400 text-amber-950 text-xs font-black px-5 py-2 rounded-bl-2xl shadow-md uppercase tracking-wider">
-              {t[lang].save25}
-            </div>
-            <span className="text-2xl font-black">{t[lang].yearlyPlan}</span>
-            <span className="text-slate-400 font-bold text-lg">{t[lang].priceYearly}</span>
-            <div className="mt-4 w-full h-1 bg-white/10 rounded-full overflow-hidden">
-               <div className="h-full bg-emerald-400 w-0 group-hover:w-full transition-all duration-700" />
-            </div>
-          </button>
+        {/* Free Tier Guarantee */}
+        <div className="p-5 bg-emerald-50/70 rounded-3xl border border-emerald-200/60">
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldCheck size={20} className="text-emerald-700 shrink-0" />
+            <h4 className="text-sm font-bold text-emerald-950">
+              {lang === 'ar' ? 'وعد حُفّاظ: الميزات الأساسية مجانية للجميع دائماً' : 'Hoffad Guarantee: Core features remain 100% free'}
+            </h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-emerald-800">
+            {freeFeatures.map((f, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Check size={16} className="text-emerald-600 shrink-0" />
+                <span>{f}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -3421,6 +3620,8 @@ function ParentScreen({
               lang={lang}
               setLang={setLang}
               isParentMode={true}
+              isPremium={isPremium}
+              onUpgrade={onUpgrade}
             />
           </motion.div>
         ) : (

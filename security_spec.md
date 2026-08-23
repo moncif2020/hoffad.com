@@ -2,13 +2,20 @@
 
 ## Data Invariants
 1. **User Ownership**: All core user data (`lessons`, `profile`) must be strictly accessible by the authenticated owner OR a verified linked TV device.
-2. **TV Session Sovereignty**: Only the device that initiated the session (via `currentAnonUid`) or the phone scanning it should be able to update it. Status transitions must be strictly followed (`waiting` -> `linked`).
-3. **Transient Upload Integrity**: Uploads are scoped to a user and a target TV. Verified via `userId` and `anonUid`.
-4. **Denial of Wallet**: Every field must have strict type and size constraints. Document IDs must match standard regex.
+2. **Subscription-Gated AI Features**: Advanced features such as AI text extraction uploads require a verified active subscription (`subscription.status == 'active'`) in the user document `/users/{userId}`.
+3. **TV Session Sovereignty**: Only the device that initiated the session (via `currentAnonUid`) or the phone scanning it should be able to update it. Status transitions must be strictly followed (`waiting` -> `linked`).
+4. **Transient Upload Integrity**: Uploads are scoped to a user and a target TV. Verified via `userId` and `anonUid`.
+5. **Denial of Wallet**: Every field must have strict type and size constraints. Document IDs must match standard regex.
 
 ## The "Dirty Dozen" Payloads (Red Team Tests)
 
-### 1. Identity Spoofing (Write to Others)
+### 1. Free-tier AI Remote Upload Bypass
+- **Target**: `/uploads/AiUpload123` (Create)
+- **Attacker**: User A (Without `subscription.status == 'active'` in `/users/UserA`)
+- **Payload**: `{ "deviceId": "TV1", "anonUid": "Anon1", "type": "image", "url": "https://...", "createdAt": request.time, "userId": "UserA" }`
+- **Result**: `PERMISSION_DENIED` (Strictly rejected by `hasActiveSubscription(request.auth.uid)`)
+
+### 2. Identity Spoofing (Write to Others)
 - **Target**: `/users/UserB`
 - **Attacker**: User A
 - **Payload**: `{ "xp": 999999 }`

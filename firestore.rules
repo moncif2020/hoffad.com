@@ -32,13 +32,26 @@ service cloud.firestore {
              get(/databases/$(database)/documents/tv_sessions/$(request.auth.uid)).data.status == 'linked';
     }
 
+    // Check if the user has an active subscription record in /users/{userId}
+    function hasActiveSubscription(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+             get(/databases/$(database)/documents/users/$(userId)).data.get('subscription', {}).get('status', '') == 'active';
+    }
+
     // --- Entity Validations ---
+    function isValidSubscription(sub) {
+      return sub is map &&
+             sub.get('status', '') in ['active', 'inactive', 'canceled'] &&
+             (sub.get('plan', '') is string && sub.get('plan', '').size() <= 50);
+    }
+
     function isValidProfile() {
       let data = incoming();
       return data.keys().hasAll(['displayName', 'updatedAt']) &&
              data.displayName is string && data.displayName.size() <= 100 &&
              (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 2048) &&
              (data.get('countryCode', '') is string && data.get('countryCode', '').size() <= 10) &&
+             (!('subscription' in data) || isValidSubscription(data.subscription)) &&
              data.updatedAt == request.time;
     }
 
@@ -77,9 +90,9 @@ service cloud.firestore {
       // Allow reading profiles so leaderboard rankings and user scores can be displayed
       allow read: if true;
       
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProfile();
       
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId) && isValidProfile();
       
       allow delete: if false; // Profiles shouldn't be deleted easily
 
@@ -126,9 +139,11 @@ service cloud.firestore {
         resource.data.anonUid == request.auth.uid
       );
 
+      // Remote AI uploads (image, audio, video) are strictly gated to users with active subscription in their user document
       allow create: if isSignedIn() && 
                        isValidRemoteUpload() && 
-                       incoming().userId == request.auth.uid;
+                       incoming().userId == request.auth.uid &&
+                       hasActiveSubscription(request.auth.uid);
       
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }

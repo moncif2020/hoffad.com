@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, Sparkles, Mic, TreePine, Users, 
   ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck,
-  BrainCircuit, Sprout, HeartHandshake, ChevronRight, ChevronLeft, Globe, Menu, X as CloseIcon, LogIn, Monitor, X, ChevronUp, ChevronDown
+  BrainCircuit, Sprout, HeartHandshake, ChevronRight, ChevronLeft, Globe, Menu, X as CloseIcon, LogIn, Monitor, X, ChevronUp, ChevronDown, Check, Star, Cloud, Zap, Cpu
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { landingTranslations, languages } from './landing-translations';
@@ -31,14 +31,15 @@ export function LandingPage() {
     return newId;
   });
   const [isLangOpen, setIsLangOpen] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const navigate = useNavigate();
   const langRef = useRef<HTMLDivElement>(null);
 
   // Merge selected language with English as fallback for missing keys
-  const t = {
+  const t = React.useMemo(() => ({
     ...landingTranslations['en'],
     ...(landingTranslations[lang] || landingTranslations['ar'])
-  };
+  }), [lang]);
 
   const devError = (...args: any[]) => { if (import.meta.env.DEV) console.error(...args); };
   
@@ -59,8 +60,10 @@ export function LandingPage() {
     document.title = `${t.app_name} - ${t.hero_title1} ${t.hero_title2}`;
     document.documentElement.dir = currentLang.dir;
     document.documentElement.lang = lang;
+  }, [lang, t.app_name, t.hero_title1, t.hero_title2, currentLang.dir]);
 
-    // If already logged in (Google/Email), redirect to app
+  // If already logged in (Google/Email), redirect to app
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.isAnonymous) {
         navigate('/app');
@@ -77,7 +80,7 @@ export function LandingPage() {
       }
     });
     return () => unsubscribe();
-  }, [lang, t, currentLang, navigate]);
+  }, [navigate]);
 
   const handleStart = (preferredMode: 'signin' | 'signup' = 'signin') => {
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
@@ -241,6 +244,16 @@ export function LandingPage() {
                   </div>
                 )}
               </div>
+
+              <button 
+                onClick={() => {
+                  document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-slate-600 hover:text-emerald-600 font-medium transition-colors hidden sm:flex items-center gap-1 cursor-pointer"
+              >
+                <Star size={16} className="text-amber-500" />
+                <span>{lang === 'ar' ? 'الباقات والأسعار' : 'Pricing'}</span>
+              </button>
 
               <button 
                 onClick={handleTVLogin}
@@ -431,6 +444,151 @@ export function LandingPage() {
                 <p className="text-slate-600">{item.desc}</p>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing & Plans Section */}
+      <section className="py-20 bg-white border-t border-slate-100 relative overflow-hidden" id="pricing">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 font-bold text-xs sm:text-sm mb-4">
+              <Sparkles size={16} />
+              <span>{lang === 'ar' ? 'باقات حُفّاظ الشفافة' : 'Transparent Pricing'}</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-4">
+              {lang === 'ar' ? 'اختر الخطة المناسبة لرحلتك القرآنية' : 'Choose The Plan That Fits Your Quran Journey'}
+            </h2>
+            <p className="text-base sm:text-lg text-slate-600">
+              {lang === 'ar' 
+                ? 'الميزات الأساسية مجانية بالكامل لجميع المسلمين، مع باقة احترافية للذكاء الاصطناعي والمزامنة السحابية المتقدمة.' 
+                : 'Core features are 100% free forever. Upgrade for unlimited AI extraction and cloud power.'}
+            </p>
+
+            {/* Billing Switcher */}
+            <div className="mt-8 inline-flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  billingCycle === 'monthly'
+                    ? 'bg-white text-slate-900 shadow-md shadow-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {lang === 'ar' ? 'اشتراك شهري ($5/شهر)' : 'Monthly ($5/mo)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('yearly')}
+                className={`relative px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  billingCycle === 'yearly'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-700/30'
+                    : 'text-slate-600 hover:text-emerald-700'
+                }`}
+              >
+                <span>{lang === 'ar' ? 'اشتراك سنوي ($36/سنة)' : 'Yearly ($36/yr)'}</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  billingCycle === 'yearly' ? 'bg-amber-400 text-amber-950' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {lang === 'ar' ? 'وفر 40% 🔥' : 'Save 40% 🔥'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto items-stretch">
+            {/* Free Plan */}
+            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 flex flex-col justify-between hover:shadow-lg transition-all">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-2xl font-bold text-slate-900">
+                    {lang === 'ar' ? 'الباقة الأساسية' : 'Free Basic'}
+                  </h3>
+                  <span className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-full">
+                    {lang === 'ar' ? 'مجاناً للأبد' : 'Free Forever'}
+                  </span>
+                </div>
+                <div className="mb-6">
+                  <span className="text-4xl font-extrabold text-slate-900">$0</span>
+                  <span className="text-slate-500 font-medium text-sm ml-2">/ {lang === 'ar' ? 'مدى الحياة' : 'lifetime'}</span>
+                </div>
+                <p className="text-slate-600 text-sm mb-6">
+                  {lang === 'ar' ? 'كل ما تحتاجه لتلاوة وحفظ القرآن الكريم مع التسميع الذكي.' : 'Everything you need to recite, memorize, and listen to the Holy Quran.'}
+                </p>
+                <div className="space-y-3 mb-8">
+                  {[
+                    lang === 'ar' ? 'المصحف الشريف كاملاً بجميع الروايات والتفاسير' : 'Complete Quran with all recitations & Tafseer',
+                    lang === 'ar' ? 'الاستماع لكافة المشايخ والقراء وتنزيل التلاوات' : 'Listen and download recitations for all reciters',
+                    lang === 'ar' ? 'التسميع الصوتي واكتشاف الأخطاء بدقة' : 'Interactive voice recitation & speech check',
+                    lang === 'ar' ? 'ألعاب الحفظ (ترتيب، إملاء، وفراغات)' : 'Memorization games & study planner'
+                  ].map((feat, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm text-slate-700">
+                      <Check size={18} className="text-emerald-500 shrink-0" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => handleStart('signup')}
+                className="w-full py-3.5 px-6 rounded-2xl bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-300 transition-all text-center cursor-pointer shadow-xs"
+              >
+                {lang === 'ar' ? 'ابدأ مجاناً الآن' : 'Get Started Free'}
+              </button>
+            </div>
+
+            {/* Pro Plan */}
+            <div className="bg-gradient-to-b from-emerald-500/10 to-teal-500/10 rounded-3xl p-8 border-2 border-emerald-500 flex flex-col justify-between relative shadow-xl shadow-emerald-500/10">
+              <div className="absolute -top-3.5 right-8 bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 text-xs font-black px-4 py-1 rounded-full shadow-md">
+                {lang === 'ar' ? 'الأكثر طلباً ⭐' : 'Most Popular ⭐'}
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <span>{lang === 'ar' ? 'باقة الحفّاظ برو' : 'Hoffad Pro'}</span>
+                    <Star size={20} className="text-amber-500" fill="currentColor" />
+                  </h3>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
+                    {billingCycle === 'yearly' ? (lang === 'ar' ? 'خصم 40%' : '40% OFF') : (lang === 'ar' ? 'مرن' : 'Flexible')}
+                  </span>
+                </div>
+                <div className="mb-6">
+                  <span className="text-4xl sm:text-5xl font-extrabold text-slate-900">
+                    {billingCycle === 'yearly' ? '$36.00' : '$5.00'}
+                  </span>
+                  <span className="text-slate-600 font-semibold text-sm ml-2">
+                    {billingCycle === 'yearly' ? (lang === 'ar' ? '/ سنة (فقط 3$/شهر)' : '/ year ($3/mo)') : (lang === 'ar' ? '/ شهرياً' : '/ month')}
+                  </span>
+                </div>
+                <p className="text-slate-600 text-sm mb-6">
+                  {lang === 'ar' ? 'أطلق العنان لكامل إمكانيات الذكاء الاصطناعي السحابي والمزامنة الفورية.' : 'Unleash full AI Gemini extraction, instant cloud sync, and remote devices.'}
+                </p>
+                <div className="space-y-3 mb-8">
+                  {[
+                    lang === 'ar' ? 'استخراج ذكاء اصطناعي غير محدود من الصور والتسجيلات' : 'Unlimited AI extraction from photos & audio',
+                    lang === 'ar' ? 'مزامنة سحابية كاملة ونسخ احتياطي للدروس والنتائج' : 'Full cloud sync & backup across all devices',
+                    lang === 'ar' ? 'ربط سريع للشاشات الذكية والتلفاز عبر QR' : 'Fast Smart TV & Remote upload via QR',
+                    lang === 'ar' ? 'شارة المشترك الذهبي وأولوية الخوادم السحابية' : 'Golden Pro badge & high-speed cloud priority'
+                  ].map((feat, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm text-slate-900 font-medium">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                        <Check size={13} strokeWidth={3} />
+                      </div>
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => handleStart('signup')}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-base transition-all text-center cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-95"
+              >
+                {billingCycle === 'yearly' 
+                  ? (lang === 'ar' ? 'اشترك سنوياً ووفر 40%' : 'Subscribe Yearly & Save 40%') 
+                  : (lang === 'ar' ? 'اشترك شهرياً ($5/شهر)' : 'Subscribe Monthly ($5/mo)')}
+              </button>
+            </div>
           </div>
         </div>
       </section>
