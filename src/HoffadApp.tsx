@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search, Share2, Award } from 'lucide-react';
+import { Cat, BookOpen, Settings, Coins, Heart, Trophy, Plus, Check, ArrowRight, RefreshCw, X, Mic, MicOff, ListOrdered, LayoutGrid, Eye, EyeOff, Book, Edit3, Loader2, Headphones, Play, Pause, Square, Volume2, TreePine, Leaf, Droplet, HeartHandshake, Utensils, Gift, Sprout, FileText, Languages, Moon, Sun, Download, Menu, ChevronDown, ChevronUp, Image as ImageIcon, Video, ShieldCheck, AlertCircle, Star, Sparkles, LogIn, LogOut, User as UserIcon, CheckCircle, Camera, Search, Share2, Award, Compass } from 'lucide-react';
 import { QURAN_SURAHS, fetchAyahs, downloadSurahAudio, downloadFullQuranAudio, getAudioUrl, isRangeDownloaded, safeJson } from './lib/quran';
 import { MushafViewer } from './components/MushafViewer';
 import { CustomSelect } from './components/CustomSelect';
@@ -10,6 +10,7 @@ import { GoogleGenAI } from "@google/genai";
 import { translations } from './translations';
 import { Leaderboard } from './components/Leaderboard';
 import { RecitationRecorder } from './components/RecitationRecorder';
+import { SmartMemorizationPlanner } from './components/SmartMemorizationPlanner';
 import { ScoreService } from './services/scoreService';
 import { diff_match_patch } from 'diff-match-patch';
 import { useAudio } from './AudioContext';
@@ -48,7 +49,7 @@ const formatTime = (seconds: number) => {
 };
 
 // --- Types ---
-type View = 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade' | 'leaderboard' | 'recorder';
+type View = 'study' | 'parent' | 'game' | 'listen' | 'mushaf' | 'about' | 'upgrade' | 'leaderboard' | 'recorder' | 'planner';
 type Lesson = { id: string; title: string; text: string; type?: 'quran' | 'custom'; audioUrl?: string; lang?: string };
 type Language = string;
 
@@ -446,18 +447,26 @@ function ListenScreen({ lang }: { lang: Language }) {
   }, [selectedSurah, fromAyah, toAyah, reciter, listenMode]);
 
   const RECITERS = [
+    { id: 'https://server16.mp3quran.net/souilass/Rewayat-Warsh-A-n-Nafi/', name: '🇲🇦 يونس اسويلص (ورش - المغرب)' },
+    { id: 'https://server12.mp3quran.net/ifrad/', name: '🇲🇦 رشيد إفراد (ورش - المغرب)' },
+    { id: 'https://server9.mp3quran.net/omar_warsh/', name: '🇲🇦 عمر القزابري (ورش - المغرب)' },
+    { id: 'https://server6.mp3quran.net/bl3/Rewayat-Warsh-A-n-Nafi/', name: '🇲🇦 رشيد بلعالية (ورش - المغرب)' },
+    { id: 'https://server11.mp3quran.net/koshi/', name: '🇲🇦 العيون الكوشي (ورش - المغرب)' },
+    { id: 'https://server6.mp3quran.net/earawi/', name: '🇲🇦 محمد الإيرواي (ورش - المغرب)' },
+    { id: 'https://server16.mp3quran.net/A-Benkirane/Rewayat-Warsh-A-n-Nafi/', name: '🇲🇦 عبد المجيب بنكيران (ورش - المغرب)' },
+    { id: 'https://server16.mp3quran.net/H-Lharraz/Rewayat-Warsh-A-n-Nafi/', name: '🇲🇦 هشام الهراز (ورش - المغرب)' },
+    { id: 'warsh/warsh_Abdul_Basit_128kbps', name: 'عبد الباسط عبد الصمد (ورش عن نافع)' },
+    { id: 'warsh/warsh_yassin_al_jazaery_64kbps', name: 'ياسين الجزائري (ورش عن نافع)' },
+    { id: 'warsh/warsh_ibrahim_aldosary_128kbps', name: 'إبراهيم الدوسري (ورش عن نافع)' },
     { id: 'Husary_64kbps', name: 'محمود خليل الحصري (معلم)' },
-    { id: 'Minshawy_Murattal_128kbps', name: 'محمد صديق المنشاوي' },
-    { id: 'Alafasy_128kbps', name: 'مشاري العفاسي' },
-    { id: 'Abdul_Basit_Murattal_64kbps', name: 'عبد الباسط عبد الصمد' },
+    { id: 'Minshawy_Murattal_128kbps', name: 'محمد صديق المنشاوي (مرتل)' },
+    { id: 'Menshawi_32kbps', name: 'محمد صديق المنشاوي (مجود)' },
+    { id: 'Alafasy_128kbps', name: 'مشاري راشد العفاسي' },
+    { id: 'Abdul_Basit_Murattal_64kbps', name: 'عبد الباسط عبد الصمد (حفص مرتل)' },
     { id: 'Ghamadi_40kbps', name: 'سعد الغامدي' },
-    { id: 'Maher_AlMuaiqly_64kbps', name: 'ماهر المعيقلي' },
-    { id: 'https://server14.mp3quran.net/islam/Rewayat-Hafs-A-n-Assem/', name: 'إسلام صبحي' },
-    { id: 'https://server9.mp3quran.net/omar_warsh/', name: 'عمر القزابري (المغرب)' },
-    { id: 'https://server11.mp3quran.net/koshi/', name: 'العيون الكوشي (المغرب)' },
-    { id: 'https://server16.mp3quran.net/souilass/Rewayat-Warsh-A-n-Nafi/', name: 'يونس اسويلص (المغرب)' },
-    { id: 'https://server12.mp3quran.net/ifrad/', name: 'رشيد افراد (المغرب)' },
-    { id: 'https://server6.mp3quran.net/bl3/Rewayat-Warsh-A-n-Nafi/', name: 'رشيد بلعالية (المغرب)' }
+    { id: 'MaherAlMuaiqly128kbps', name: 'ماهر المعيقلي' },
+    { id: 'Hudhaify_64kbps', name: 'علي بن عبد الرحمن الحذيفي' },
+    { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'أبو بكر الشاطري' }
   ];
 
   useEffect(() => {
@@ -1987,6 +1996,14 @@ export default function App() {
                 </button>
 
                 <button 
+                  onClick={() => { setView('planner'); setIsSidebarOpen(false); }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-all w-full focus:ring-2 focus:ring-emerald-500 outline-none ${view === 'planner' ? 'bg-emerald-100 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Compass size={22} className={view === 'planner' ? 'text-emerald-600' : 'text-emerald-500'} />
+                  <span>{currentT.memorizationPlanner || (lang === 'ar' ? 'خطة الحفظ الذكية' : 'Memorization Plan')}</span>
+                </button>
+
+                <button 
                   onClick={() => { 
                     setShareModalConfig({
                       surahName: 'سورة الفاتحة',
@@ -2075,7 +2092,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === 'study' && (
             <motion.div key="study" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              <StudyScreen lessons={lessons} onStartGame={startGame} lang={lang} />
+              <StudyScreen lessons={lessons} onStartGame={startGame} lang={lang} onOpenPlanner={() => setView('planner')} />
             </motion.div>
           )}
           {view === 'game' && activeLesson && (
@@ -2132,6 +2149,20 @@ export default function App() {
           {view === 'recorder' && (
             <motion.div key="recorder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
               <RecitationRecorder onBack={() => setView('study')} lang={lang} t={currentT} />
+            </motion.div>
+          )}
+          {view === 'planner' && (
+            <motion.div key="planner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+              <SmartMemorizationPlanner 
+                onBack={() => setView('study')} 
+                lang={lang}
+                onNavigateToMushaf={() => setView('mushaf')}
+                onNavigateToRecite={() => setView('recorder')}
+                onOpenShareModal={(config) => {
+                  setShareModalConfig(config);
+                  setIsShareModalOpen(true);
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2286,9 +2317,40 @@ function AboutScreen({ lang }: { lang: Language }) {
   );
 }
 
-function StudyScreen({ lessons, onStartGame, lang }: { lessons: Lesson[], onStartGame: (l: Lesson) => void, lang: Language }) {
+function StudyScreen({ lessons, onStartGame, lang, onOpenPlanner }: { lessons: Lesson[], onStartGame: (l: Lesson) => void, lang: Language, onOpenPlanner?: () => void }) {
   return (
     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="py-4">
+      {/* Smart Memorization Planner Banner */}
+      {onOpenPlanner && (
+        <div 
+          onClick={onOpenPlanner}
+          className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white shadow-md hover:shadow-lg transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-emerald-500/30 group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-white/15 backdrop-blur-md rounded-2xl text-amber-300 shrink-0">
+              <Compass size={26} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base sm:text-lg">
+                  {lang === 'ar' ? 'خطة الحفظ الذكية والمراجعة المؤتمتة' : 'Smart Memorization Plan'}
+                </h3>
+                <span className="text-[10px] bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-full">
+                  {lang === 'ar' ? 'مميّز' : 'NEW'}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-emerald-100 mt-0.5">
+                {lang === 'ar' ? 'تقييم مستواك الحالي، تحديد هدف الختم، وجدول التكرار المتباعد الذكي.' : 'Assess your level, set your target date, and follow spaced repetition.'}
+              </p>
+            </div>
+          </div>
+
+          <button className="self-end sm:self-center px-4 py-2 bg-white text-emerald-800 font-black text-xs sm:text-sm rounded-xl shadow-sm group-hover:bg-emerald-50 transition-colors shrink-0">
+            {lang === 'ar' ? 'عرض وضبط الخطة ←' : 'Open Plan →'}
+          </button>
+        </div>
+      )}
+
       <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
         <BookOpen className="text-emerald-500" />
         {t[lang].memorizationTasks}

@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Info, Download, CheckCircle2, Search, X, Headphones, Play, Loader2, Square, Eye, Share2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Info, Download, CheckCircle2, Search, X, Headphones, Play, Loader2, Square, Eye, Share2, WifiOff, RotateCcw, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import quranMetadata from '../data/quran-metadata.json';
 import { useAudio } from '../AudioContext';
 import { fetchAyahs, getAudioUrl, QURAN_SURAHS } from '../lib/quran';
+import { 
+  loadQuranPageBlob, 
+  getPageMirrors, 
+  downloadAllQuranPages, 
+  getStoredPagesCount, 
+  type DownloadProgressInfo 
+} from '../lib/offlinePages';
 import { CustomSelect } from './CustomSelect';
 import { QuranSearchInline } from './QuranSearchInline';
 import { ShareAchievementModal } from './ShareAchievementModal';
@@ -64,8 +71,10 @@ interface MushafViewerProps {
 export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafViewerProps) {
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadProgressInfo, setDownloadProgressInfo] = useState<DownloadProgressInfo | null>(null);
+  const [storedPagesCount, setStoredPagesCount] = useState<number>(0);
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -99,72 +108,96 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
 
   const pageMeta = getPageMetadata(currentPage);
 
-  useEffect(() => {
-    // Check if all pages are downloaded
-    const checkDownloadStatus = async () => {
-      try {
-        const cache = await caches.open('quran-pages');
-        const keys = await cache.keys();
-        // Count how many pages are cached
-        const cachedPagesCount = keys.filter(req => req.url.includes('quran-pages-images')).length;
-        if (cachedPagesCount >= totalPages - 10) { // Allow small margin of error
-          setIsFullyDownloaded(true);
-        }
-      } catch (e) {
-        console.error("Error checking cache status", e);
+  // Check actual stored count on mount and update status
+  const refreshStorageStatus = async () => {
+    try {
+      const count = await getStoredPagesCount();
+      setStoredPagesCount(count);
+      if (count >= totalPages - 5) {
+        setIsFullyDownloaded(true);
+      } else {
+        setIsFullyDownloaded(false);
       }
-    };
-    checkDownloadStatus();
+    } catch {
+      // Ignored
+    }
+  };
+
+  useEffect(() => {
+    refreshStorageStatus();
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    let currentBlobUrl: string | null = null;
+  const activeBlobUrlRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-    const loadImage = async () => {
-      setIsLoading(true);
-      const url = `https://raw.githubusercontent.com/QuranHub/quran-pages-images/main/kfgqpc/warsh/${currentPage}.jpg`;
-      
-      try {
-        const cache = await caches.open('quran-pages');
-        const cachedRes = await cache.match(url);
-        
-        if (cachedRes) {
-          const blob = await cachedRes.blob();
-          if (isMounted) {
-            currentBlobUrl = URL.createObjectURL(blob);
-            setImageSrc(currentBlobUrl);
-            setIsLoading(false);
-          }
-        } else {
-          const res = await fetch(url, { mode: 'cors' });
-          if (res.ok) {
-            const resClone = res.clone();
-            await cache.put(url, resClone);
-            const blob = await res.blob();
-            if (isMounted) {
-              currentBlobUrl = URL.createObjectURL(blob);
-              setImageSrc(currentBlobUrl);
-              setIsLoading(false);
-            }
-          } else {
-            if (isMounted) setImageSrc(url);
-          }
+  const loadPage = async (page: number) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setIsLoading(true);
+    setHasLoadError(false);
+
+    try {
+      const result = await loadQuranPageBlob(page, abortController.signal);
+      if (abortController.signal.aborted) return;
+
+      if (result && result.blob && result.blob.size > 500) {
+        const blobUrl = URL.createObjectURL(result.blob);
+        if (activeBlobUrlRef.current && activeBlobUrlRef.current.startsWith('blob:')) {
+          URL.revokeObjectURL(activeBlobUrlRef.current);
         }
-      } catch (e) {
-        if (isMounted) setImageSrc(url);
+        activeBlobUrlRef.current = blobUrl;
+        setImageSrc(blobUrl);
+        setHasLoadError(false);
+        setIsLoading(false);
+      } else {
+        // Direct mirror fallback
+        const mirrors = getPageMirrors(page);
+        setImageSrc(mirrors[0]);
+        setIsLoading(false);
       }
-    };
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') return;
+      const mirrors = getPageMirrors(page);
+      setImageSrc(mirrors[0]);
+      setIsLoading(false);
+    }
+  };
 
-    loadImage();
-
-    return () => {
-      isMounted = false;
-      if (currentBlobUrl) {
-        URL.revokeObjectURL(currentBlobUrl);
-      }
-    };
+  useEffect(() => {
+    loadPage(currentPage);
   }, [currentPage]);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (activeBlobUrlRef.current && activeBlobUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(activeBlobUrlRef.current);
+      }
+    };
+  }, []);
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    if (!imageSrc) {
+      setHasLoadError(true);
+      return;
+    }
+    const mirrors = getPageMirrors(currentPage);
+    const currentIdx = mirrors.findIndex(m => imageSrc === m);
+    if (currentIdx !== -1 && currentIdx + 1 < mirrors.length) {
+      // Try next mirror
+      setImageSrc(mirrors[currentIdx + 1]);
+    } else {
+      // All sources exhausted
+      setHasLoadError(true);
+    }
+  };
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -178,62 +211,46 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
     }
   };
 
+  const isDownloadingRef = useRef(false);
+  const downloadAbortRef = useRef<AbortController | null>(null);
+
   const downloadAllPages = async () => {
-    if (isFullyDownloaded) return;
+    if (isDownloadingRef.current) return;
+    isDownloadingRef.current = true;
+    const abortCtrl = new AbortController();
+    downloadAbortRef.current = abortCtrl;
     
     try {
-      setDownloadProgress(0);
-      const cache = await caches.open('quran-pages');
-      let downloaded = 0;
-      const batchSize = 3; // Download in smaller batches to avoid rate limits
+      const res = await downloadAllQuranPages(
+        totalPages,
+        (info) => {
+          setDownloadProgressInfo(info);
+          setStoredPagesCount(info.completed);
+        },
+        abortCtrl.signal
+      );
       
-      const fetchWithRetry = async (url: string, retries = 3, delay = 1000): Promise<Response> => {
-        for (let i = 0; i < retries; i++) {
-          try {
-            const res = await fetch(url, { mode: 'cors' });
-            if (res.ok) return res;
-            if (i === retries - 1) throw new Error(`Status: ${res.status}`);
-          } catch (e) {
-            if (i === retries - 1) throw e;
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
-        throw new Error('Unreachable');
-      };
-
-      for (let i = 1; i <= totalPages; i += batchSize) {
-        const promises = [];
-        for (let j = 0; j < batchSize && i + j <= totalPages; j++) {
-          const pageNum = i + j;
-          const url = `https://raw.githubusercontent.com/QuranHub/quran-pages-images/main/kfgqpc/warsh/${pageNum}.jpg`;
-          
-          promises.push(
-            cache.match(url).then(async (cachedRes) => {
-              if (!cachedRes) {
-                try {
-                  const res = await fetchWithRetry(url);
-                  await cache.put(url, res);
-                } catch (e) {
-                  console.error(`Failed to download page ${pageNum}`, e);
-                }
-              }
-              downloaded++;
-              setDownloadProgress(Math.round((downloaded / totalPages) * 100));
-            })
-          );
-        }
-        await Promise.all(promises);
-        // Add a small delay between batches to prevent network congestion
-        await new Promise(resolve => setTimeout(resolve, 200));
+      if (res.success) {
+        setIsFullyDownloaded(true);
       }
-      
-      setDownloadProgress(null);
-      setIsFullyDownloaded(true);
     } catch (error) {
-      console.error('Error downloading pages:', error);
-      setDownloadProgress(null);
-      alert('حدث خطأ أثناء تحميل الصفحات. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.');
+      // Download failed or aborted
+    } finally {
+      isDownloadingRef.current = false;
+      setDownloadProgressInfo(null);
+      await refreshStorageStatus();
+      // Reload current page to ensure it uses the newly stored blob
+      loadPage(currentPage);
     }
+  };
+
+  const cancelDownload = () => {
+    if (downloadAbortRef.current) {
+      downloadAbortRef.current.abort();
+      downloadAbortRef.current = null;
+    }
+    isDownloadingRef.current = false;
+    setDownloadProgressInfo(null);
   };
 
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -524,15 +541,37 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
                   <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               )}
-              {imageSrc && (
+              {hasLoadError ? (
+                <div className="flex flex-col items-center justify-center p-6 text-center max-w-md bg-white/90 dark:bg-slate-900/90 rounded-3xl border border-emerald-100 dark:border-slate-800 shadow-xl m-4" dir="rtl">
+                  <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mb-4">
+                    <WifiOff size={32} />
+                  </div>
+                  <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100 font-arabic mb-2">
+                    الصفحة {currentPage} غير محفوظة أوفلاين
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-arabic mb-5 leading-relaxed">
+                    لم يتم تنزيل هذه الصفحة مسبقاً للقراءة بدون إنترنت. يمكنك إعادة المحاولة أو تنزيل المصحف كاملاً عند توفر الاتصال.
+                  </p>
+                  <div className="flex justify-center w-full">
+                    <button
+                      onClick={() => loadPage(currentPage)}
+                      className="flex items-center justify-center gap-2 py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold font-arabic transition-all shadow-md active:scale-95"
+                    >
+                      <RotateCcw size={18} />
+                      <span>إعادة المحاولة</span>
+                    </button>
+                  </div>
+                </div>
+              ) : imageSrc ? (
                 <img
                   src={imageSrc}
                   alt={`صفحة ${currentPage} من المصحف`}
                   className="w-full h-auto portrait:w-auto portrait:max-h-[85vh] object-contain animate-in fade-in zoom-in duration-300 shadow-[0_0_50px_rgba(0,196,140,0.1)]"
                   dir="rtl"
+                  onError={handleImageError}
                   onClick={(e) => e.stopPropagation()}
                 />
-              )}
+              ) : null}
             </div>
 
             {/* Footer Content */}
@@ -679,7 +718,30 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
             <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
-        {imageSrc && (
+        
+        {hasLoadError ? (
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center" dir="rtl">
+            <div className="w-20 h-20 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-3xl flex items-center justify-center mb-5 shadow-inner">
+              <WifiOff size={40} />
+            </div>
+            <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100 font-arabic mb-2">
+              الصفحة {currentPage} غير متوفرة دون اتصال
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 font-arabic max-w-md mb-6 leading-relaxed">
+              سورة {pageMeta.surahName || 'القرآن'} (الجزء {pageMeta.juz}).
+              لم يتم تحميل وحفظ هذه الصفحة للقراءة في وضع عدم الاتصال بعد.
+            </p>
+            <div className="flex items-center justify-center">
+              <button
+                onClick={() => loadPage(currentPage)}
+                className="flex items-center gap-2 px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold font-arabic transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+              >
+                <RotateCcw size={20} />
+                <span>إعادة المحاولة</span>
+              </button>
+            </div>
+          </div>
+        ) : imageSrc ? (
           <div className="w-full flex-1 landscape:h-auto p-2 sm:px-6 sm:py-2 flex flex-col items-center justify-between landscape:justify-start">
             <MushafHeader surahName={pageMeta.surahName} surahEnglish={pageMeta.surahEnglish} lang={lang} />
             
@@ -689,7 +751,7 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
                 alt={`صفحة ${currentPage} من المصحف`}
                 className="w-full h-auto portrait:w-auto portrait:max-h-[70vh] landscape:max-h-none object-contain cursor-pointer transition-transform duration-500 group-hover:scale-[1.01] shadow-2xl rounded-lg"
                 onLoad={() => setIsLoading(false)}
-                onError={() => setIsLoading(false)}
+                onError={handleImageError}
                 onClick={() => setIsFullscreen(true)}
                 dir="rtl"
               />
@@ -697,7 +759,7 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
 
             <MushafFooter page={currentPage} juz={pageMeta.juz} lang={lang} />
           </div>
-        )}
+        ) : null}
         
         {/* TV Navigation Hints (Visible on hover or focus) */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:flex">
@@ -707,23 +769,65 @@ export function MushafViewer({ initialPage = 1, onClose, lang = 'ar' }: MushafVi
       </div>
 
       <div className="w-full max-w-3xl mt-4 flex flex-col gap-3" dir="rtl">
-        {!isFullyDownloaded && (
+        {downloadProgressInfo ? (
+          <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-800 dark:text-gray-100 font-arabic text-sm">
+                    جاري حفظ صفحات المصحف للقراءة بدون إنترنت...
+                  </h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-arabic">
+                    تم حفظ {downloadProgressInfo.completed} من أصل {downloadProgressInfo.total} صفحة ({downloadProgressInfo.percent}%)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={cancelDownload}
+                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all font-arabic border border-red-200 dark:border-red-900/40"
+              >
+                إلغاء التنزيل
+              </button>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full bg-gray-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-emerald-500 h-full transition-all duration-300 rounded-full shadow-sm"
+                style={{ width: `${downloadProgressInfo.percent}%` }}
+              />
+            </div>
+          </div>
+        ) : isFullyDownloaded ? (
+          <div className="flex items-center justify-between p-3.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl text-emerald-800 dark:text-emerald-300">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span className="font-bold text-sm font-arabic">
+                المصحف محفوظ كاملاً للقراءة بدون إنترنت ({storedPagesCount || 604} صفحة جاهزة)
+              </span>
+            </div>
+            <button
+              onClick={downloadAllPages}
+              className="text-xs text-emerald-700 dark:text-emerald-400 underline hover:no-underline font-arabic"
+              title="التحقق من الصفحات وإعادة المزامنة"
+            >
+              إعادة فحص
+            </button>
+          </div>
+        ) : (
           <button
             onClick={downloadAllPages}
-            disabled={downloadProgress !== null}
-            className="flex items-center justify-center gap-3 p-4 rounded-2xl font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-300 outline-none disabled:bg-emerald-400 shadow-lg shadow-emerald-100 dark:shadow-none text-lg"
+            className="flex items-center justify-center gap-3 p-4 rounded-2xl font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-300 outline-none shadow-lg shadow-emerald-600/20 text-base sm:text-lg active:scale-[0.99]"
           >
-            {downloadProgress !== null ? (
-              <>
-                <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>جاري التحميل... {downloadProgress}%</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-6 h-6" />
-                <span>تحميل المصحف كاملاً للقراءة بدون إنترنت</span>
-              </>
-            )}
+            <Download className="w-6 h-6" />
+            <span>
+              {storedPagesCount > 0 
+                ? `استكمال تحميل المصحف للأوفلاين (تم حفظ ${storedPagesCount} / ${totalPages})`
+                : 'تحميل المصحف كاملاً للقراءة بدون إنترنت'
+              }
+            </span>
           </button>
         )}
       </div>

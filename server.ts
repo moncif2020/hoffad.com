@@ -80,12 +80,133 @@ async function startServer() {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.google-analytics.com; " +
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
       "font-src 'self' https://fonts.gstatic.com; " +
-      "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.googleusercontent.com; " +
-      "media-src 'self' blob: https://firebasestorage.googleapis.com https://*.everyayah.com https://everyayah.com https://mirrors.quranicaudio.com https://*.mp3quran.net; " +
-      "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://www.google-analytics.com https://api.alquran.cloud https://api.quran.com https://*.everyayah.com https://everyayah.com https://mirrors.quranicaudio.com https://*.mp3quran.net; " +
+      "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.googleusercontent.com https://cdn.jsdelivr.net https://*.jsdelivr.net https://raw.githubusercontent.com https://files.quran.app https://*.quran.app https://android.quran.com https://*.quran.com; " +
+      "media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.everyayah.com https://everyayah.com https://mirrors.quranicaudio.com https://*.mp3quran.net https://cdn.islamic.network https://*.islamic.network https://verses.quran.com; " +
+      "connect-src 'self' blob: data: https://*.firebaseio.com https://*.googleapis.com https://www.google-analytics.com https://api.alquran.cloud https://api.quran.com https://cdn.jsdelivr.net https://*.jsdelivr.net https://raw.githubusercontent.com https://files.quran.app https://*.quran.app https://android.quran.com https://*.quran.com https://*.everyayah.com https://everyayah.com https://mirrors.quranicaudio.com https://*.mp3quran.net https://cdn.islamic.network https://*.islamic.network https://verses.quran.com; " +
       "frame-src 'self' https://*.firebaseapp.com https://*.firebaseio.com;"
     );
     next();
+  });
+
+  // Dedicated Quran Page Proxy Endpoint with caching
+  app.get('/api/quran-page/:page', async (req, res) => {
+    const pageNum = parseInt(req.params.page, 10);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > 604) {
+      return res.status(400).send('Invalid Quran page number (1-604)');
+    }
+
+    const pad3 = pageNum.toString().padStart(3, '0');
+    const urls = [
+      `https://cdn.jsdelivr.net/gh/QuranHub/quran-pages-images@main/kfgqpc/warsh/${pageNum}.jpg`,
+      `https://fastly.jsdelivr.net/gh/QuranHub/quran-pages-images@main/kfgqpc/warsh/${pageNum}.jpg`,
+      `https://cdn.jsdelivr.net/gh/QuranHub/quran-pages-images@main/kfgqpc/hafs-wasat/${pageNum}.jpg`,
+      `https://files.quran.app/hafs/madani/width_1260/page${pad3}.png`,
+      `https://raw.githubusercontent.com/QuranHub/quran-pages-images/main/kfgqpc/warsh/${pageNum}.jpg`
+    ];
+
+    for (const url of urls) {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 6000
+        });
+
+        if (response.status === 200 && response.data) {
+          const contentType = response.headers['content-type'] || (url.endsWith('.png') ? 'image/png' : 'image/jpeg');
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return res.send(Buffer.from(response.data));
+        }
+      } catch {
+        // Try next mirror
+      }
+    }
+
+    return res.status(502).send('Unable to load Quran page from upstream mirrors');
+  });
+
+  // Dedicated Quran Surah Text API Endpoint
+  app.get('/api/surah/:surah', async (req, res) => {
+    const surahNum = parseInt(req.params.surah, 10);
+    if (isNaN(surahNum) || surahNum < 1 || surahNum > 114) {
+      return res.status(400).json({ error: 'Invalid surah number (1-114)' });
+    }
+
+    // Try primary: alquran.cloud
+    try {
+      const response = await axios.get(`https://api.alquran.cloud/v1/surah/${surahNum}/editions/quran-uthmani`, { timeout: 6000 });
+      if (response.status === 200 && response.data?.data?.[0]) {
+        const surah = response.data.data[0];
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        return res.json({
+          surahName: surah.name,
+          ayahs: (surah.ayahs || []).map((a: any) => ({
+            number: a.number,
+            numberInSurah: a.numberInSurah,
+            text: a.text
+          }))
+        });
+      }
+    } catch {
+      // Try fallback: api.quran.com
+    }
+
+    try {
+      const response = await axios.get(`https://api.quran.com/api/v4/quran/verses/uthmani?chapter_number=${surahNum}`, { timeout: 6000 });
+      if (response.status === 200 && response.data?.verses) {
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        return res.json({
+          surahName: `سورة ${surahNum}`,
+          ayahs: response.data.verses.map((v: any) => ({
+            number: v.id,
+            numberInSurah: parseInt(v.verse_key?.split(':')[1] || '0'),
+            text: v.text_uthmani
+          }))
+        });
+      }
+    } catch (e: any) {
+      return res.status(502).json({ error: 'Failed to fetch surah data', details: e.message });
+    }
+  });
+
+  // Dedicated Quran Ayah Audio Proxy
+  app.get('/api/quran-audio/:reciter/:surah/:ayah', async (req, res) => {
+    const { reciter, surah, ayah } = req.params;
+    const surahNum = parseInt(surah, 10);
+    const ayahNum = parseInt(ayah, 10);
+
+    if (isNaN(surahNum) || isNaN(ayahNum)) {
+      return res.status(400).send('Invalid surah or ayah number');
+    }
+
+    const surahStr = surahNum.toString().padStart(3, '0');
+    const ayahStr = ayahNum.toString().padStart(3, '0');
+    const decodedReciter = decodeURIComponent(reciter);
+
+    const urls = [
+      `https://everyayah.com/data/${decodedReciter}/${surahStr}${ayahStr}.mp3`,
+      `https://www.everyayah.com/data/${decodedReciter}/${surahStr}${ayahStr}.mp3`
+    ];
+
+    for (const url of urls) {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 7000
+        });
+
+        if (response.status === 200 && response.data) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          res.setHeader('Accept-Ranges', 'bytes');
+          return res.send(Buffer.from(response.data));
+        }
+      } catch {
+        // Try next
+      }
+    }
+
+    return res.status(404).send('Audio not found');
   });
 
   // API route to generate a custom token for TV login

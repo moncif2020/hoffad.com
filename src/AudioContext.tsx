@@ -148,12 +148,11 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const handleAudioError = (e: any) => {
-    devError("Audio element error", e);
     const audio = audioRef.current;
     if (!audio) return;
 
     const currentTrack = playlistRef.current[currentTrackIndex];
-    if (currentTrack && currentTrack.surah && currentTrack.ayah && retryCount < 2) {
+    if (currentTrack && currentTrack.surah && currentTrack.ayah && retryCount < 3) {
       // Try next mirror
       const nextMirrorIndex = retryCount + 1;
       const nextUrl = getAudioUrl(reciter, currentTrack.surah, currentTrack.ayah, nextMirrorIndex);
@@ -164,7 +163,9 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
       
       audio.src = nextUrl;
       audio.load();
-      audio.play().catch(err => devError("Mirror playback failed", err));
+      audio.play().catch(() => {
+        // Will trigger onError again if this mirror also fails
+      });
     } else {
       setIsLoading(false);
       setIsPlaying(false);

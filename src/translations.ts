@@ -92,10 +92,12 @@ export const translations: any = {
     amazingRecitation: 'What an amazing recitation!',
     listeningMode: 'Listening to your heart...',
     studioMode: 'Studio Mode',
-    rawMode: 'Raw Mode'
+    rawMode: 'Raw Mode',
+    memorizationPlanner: 'Memorization Plan'
   },
   ar: { 
     study: 'المذاكرة', listen: 'استماع', settings: 'لوحة تحكم الوالدين',
+    memorizationPlanner: 'خطة الحفظ الذكية',
     currentLevel: 'مستواك الحالي', pointsToNext: 'باقي {points} نقطة للمستوى القادم',
     memorizationTasks: 'مهام الحفظ',
     noTasks: 'لا توجد مهام حالياً. اطلب من والدك إضافة دروس جديدة!', listenAndMemorize: 'التلقين والاستماع',
