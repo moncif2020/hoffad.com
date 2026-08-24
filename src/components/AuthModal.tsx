@@ -78,6 +78,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       err_wrong_pass: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
       err_user_not_found: 'لم يتم العثور على حساب بهذا البريد الإلكتروني.',
       err_popup_blocked: 'تم حظر النافذة المنبثقة، يرجى السماح بها في متصفحك.',
+      err_popup_closed: 'تم إغلاق نافذة تسجيل الدخول.',
+      err_unauthorized_domain: 'النطاق غير مصرح به في Firebase Console. يرجى إضافة رابط الموقع في Authorized Domains.',
+      err_operation_not_allowed: 'تسجيل الدخول باستخدام Google أو البريد غير مفعّل في Firebase Authentication.',
       err_generic: 'حدث خطأ، يرجى المحاولة مرة أخرى.'
     },
     en: {
@@ -116,6 +119,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       err_wrong_pass: 'Incorrect email or password.',
       err_user_not_found: 'No account found with this email.',
       err_popup_blocked: 'Popup blocked. Please allow popups for this site.',
+      err_popup_closed: 'Sign-in popup was closed.',
+      err_unauthorized_domain: 'Domain not authorized in Firebase Console Settings.',
+      err_operation_not_allowed: 'Sign-in provider is not enabled in Firebase Console.',
       err_generic: 'An error occurred. Please try again.'
     },
     fr: {
@@ -153,14 +159,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       err_wrong_pass: 'E-mail ou mot de passe incorrect.',
       err_user_not_found: 'Aucun compte trouvé avec cet e-mail.',
       err_popup_blocked: 'Fenêtre bloquée par le navigateur.',
+      err_popup_closed: 'La fenêtre de connexion a été fermée.',
+      err_unauthorized_domain: 'Domaine non autorisé dans la console Firebase.',
+      err_operation_not_allowed: 'Fournisseur d’authentification non activé.',
       err_generic: 'Une erreur est survenue.'
     }
   };
 
   const currentTexts = t[lang as keyof typeof t] || t.ar;
 
-  const translateFirebaseError = (errCode: string): string => {
+  const translateFirebaseError = (errCode: string): string | null => {
     switch (errCode) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return null;
       case 'auth/email-already-in-use':
         return currentTexts.err_email_in_use;
       case 'auth/weak-password':
@@ -174,6 +186,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return currentTexts.err_user_not_found;
       case 'auth/popup-blocked':
         return currentTexts.err_popup_blocked;
+      case 'auth/unauthorized-domain':
+        return currentTexts.err_unauthorized_domain;
+      case 'auth/operation-not-allowed':
+        return currentTexts.err_operation_not_allowed;
       default:
         return currentTexts.err_generic;
     }
@@ -188,7 +204,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error("Google Auth Error:", err);
-      setError(translateFirebaseError(err.code));
+      const translated = translateFirebaseError(err.code);
+      if (translated) {
+        setError(translated);
+      }
     } finally {
       setIsGoogleLoading(false);
     }
