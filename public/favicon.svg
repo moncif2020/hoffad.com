@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="leafGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="50%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="leafGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#166534"/>
+      <stop offset="60%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="bookCoverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#849666"/>
+      <stop offset="50%" stop-color="#556b2f"/>
+      <stop offset="100%" stop-color="#3d4f1f"/>
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#fbfcf7"/>
+      <stop offset="50%" stop-color="#e8edd8"/>
+      <stop offset="80%" stop-color="#fbfcf7"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="goldEdgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c4a747"/>
+      <stop offset="50%" stop-color="#e6d585"/>
+      <stop offset="100%" stop-color="#a6892c"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d5a27"/>
+      <stop offset="100%" stop-color="#1e3f1a"/>
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(0, 0)">
+    <!-- WREATH / LEAVES TOP ARCH -->
+    <!-- Center top blossom/buds -->
+    <g id="top-buds" fill="url(#leafGrad1)">
+      <path d="M250,55 C244,70 248,85 250,90 C252,85 256,70 250,55 Z"/>
+      <path d="M250,65 C238,72 235,85 240,92 C245,88 248,78 250,65 Z"/>
+      <path d="M250,65 C262,72 265,85 260,92 C255,88 252,78 250,65 Z"/>
+      <!-- Small flanking buds -->
+      <path d="M236,78 C225,82 224,94 230,100 C234,94 236,86 236,78 Z" opacity="0.9"/>
+      <path d="M264,78 C275,82 276,94 270,100 C266,94 264,86 264,78 Z" opacity="0.9"/>
+    </g>
+
+    <!-- Left Wreath Branch -->
+    <g id="left-branch" fill="url(#leafGrad2)">
+      <!-- Leaf pairs descending along arch -->
+      <path d="M226,92 C210,95 202,110 208,120 C216,112 222,102 226,92 Z"/>
+      <path d="M238,104 C222,112 220,128 228,136 C233,126 236,115 238,104 Z"/>
+
+      <path d="M200,118 C182,126 178,144 186,155 C194,144 198,131 200,118 Z"/>
+      <path d="M214,132 C198,144 200,162 210,168 C214,156 215,143 214,132 Z"/>
+
+      <path d="M178,154 C160,168 160,188 170,198 C176,186 178,170 178,154 Z"/>
+      <path d="M196,168 C180,184 184,204 195,208 C198,194 198,180 196,168 Z"/>
+
+      <path d="M164,198 C148,216 152,238 164,246 C168,232 167,214 164,198 Z"/>
+      <path d="M184,210 C170,230 176,250 188,252 C190,238 188,223 184,210 Z"/>
+
+      <path d="M158,248 C145,268 152,290 165,296 C168,282 164,265 158,248 Z"/>
+      <path d="M178,258 C166,278 175,296 188,296 C188,282 184,269 178,258 Z"/>
+
+      <!-- Lower terminal branch wrapping inward -->
+      <path d="M165,302 C154,320 165,338 178,340 C178,326 174,313 165,302 Z"/>
+      <path d="M186,306 C178,324 190,340 204,338 C202,324 195,314 186,306 Z"/>
+      <path d="M198,342 C188,354 198,368 212,364 C210,352 205,346 198,342 Z"/>
+    </g>
+
+    <!-- Right Wreath Branch (Mirrored) -->
+    <g id="right-branch" fill="url(#leafGrad2)">
+      <path d="M274,92 C290,95 298,110 292,120 C284,112 278,102 274,92 Z"/>
+      <path d="M262,104 C278,112 280,128 272,136 C267,126 264,115 262,104 Z"/>
+
+      <path d="M300,118 C318,126 322,144 314,155 C306,144 302,131 300,118 Z"/>
+      <path d="M286,132 C302,144 300,162 290,168 C286,156 285,143 286,132 Z"/>
+
+      <path d="M322,154 C340,168 340,188 330,198 C324,186 322,170 322,154 Z"/>
+      <path d="M304,168 C320,184 316,204 305,208 C302,194 302,180 304,168 Z"/>
+
+      <path d="M336,198 C352,216 348,238 336,246 C332,232 333,214 336,198 Z"/>
+      <path d="M316,210 C330,230 324,250 312,252 C310,238 312,223 316,210 Z"/>
+
+      <path d="M342,248 C355,268 348,290 335,296 C332,282 336,265 342,248 Z"/>
+      <path d="M322,258 C334,278 325,296 312,296 C312,282 316,269 322,258 Z"/>
+
+      <!-- Lower terminal branch wrapping inward -->
+      <path d="M335,302 C346,320 335,338 322,340 C322,326 326,313 335,302 Z"/>
+      <path d="M314,306 C322,324 310,340 296,338 C298,324 305,314 314,306 Z"/>
+      <path d="M302,342 C312,354 302,368 288,364 C290,352 295,346 302,342 Z"/>
+    </g>
+
+    <!-- Main Stem lines tying the wreath -->
+    <path d="M250,85 C210,95 168,145 165,240 C162,310 195,355 210,360" fill="none" stroke="#22c55e" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M250,85 C290,95 332,145 335,240 C338,310 305,355 290,360" fill="none" stroke="#22c55e" stroke-width="3.5" stroke-linecap="round"/>
+
+    <!-- OPEN BOOK (AL-QURAN / AL-KITAB) -->
+    <g id="open-book" filter="url(#subtleShadow)">
+      <!-- Bottom Stand / Cover Base (Olive/Goldish Green) -->
+      <path d="M165,345 C195,335 235,345 250,360 C265,345 305,335 335,345 L345,330 C310,320 270,332 250,346 C230,332 190,320 155,330 Z" fill="url(#bookCoverGrad)" stroke="#4a5d28" stroke-width="1.5"/>
+
+      <!-- Book Spine/Lower Rim Accent -->
+      <path d="M160,335 C190,325 235,338 250,354 C265,338 310,325 340,335 L338,342 C308,332 265,345 250,360 C235,345 192,332 162,342 Z" fill="url(#goldEdgeGrad)"/>
+
+      <!-- Left Page Block (Thick Pages) -->
+      <path d="M172,215 C210,210 240,225 250,238 L250,348 C238,336 205,322 172,330 Z" fill="url(#pageGrad)" stroke="#7d8f5c" stroke-width="2"/>
+      <!-- Inner Left Page Border/Margin -->
+      <path d="M182,226 C210,222 234,233 244,244 L244,334 C234,324 210,314 182,320 Z" fill="none" stroke="#a3b880" stroke-width="1.2" stroke-dasharray="1 0"/>
+
+      <!-- Right Page Block (Thick Pages) -->
+      <path d="M328,215 C290,210 260,225 250,238 L250,348 C262,336 295,322 328,330 Z" fill="url(#pageGrad)" stroke="#7d8f5c" stroke-width="2"/>
+      <!-- Inner Right Page Border/Margin -->
+      <path d="M318,226 C290,222 266,233 256,244 L256,334 C266,324 290,314 318,320 Z" fill="none" stroke="#a3b880" stroke-width="1.2" stroke-dasharray="1 0"/>
+
+      <!-- Book Golden Bookmark Ribbon / Center Crease -->
+      <path d="M249,235 L251,235 L251,358 L249,358 Z" fill="#bfa33f"/>
+    </g>
+
+    <!-- CALLIGRAPHY: حُفَّاظْ (HOFFAD) -->
+    <g id="calligraphy-hoffad" fill="#2d5225" stroke="#2d5225" stroke-width="0.5">
+      <path d="M228,265 C222,260 215,258 206,260 C200,261 195,265 198,271 C200,274 205,274 214,272 C220,270 225,272 230,276 C233,278 234,282 231,286 C225,294 212,298 200,296 C194,295 190,292 192,288 C193,286 196,286 198,288 C206,293 216,290 222,284 C225,280 224,277 220,275 C212,277 202,279 194,273 C188,268 190,258 202,254 C214,250 225,254 233,260 Z"/>
+      <path d="M236,285 C233,280 236,272 242,270 C248,268 253,272 254,278 C254,283 250,287 244,287 C240,287 238,285 236,285 Z M244,273 C240,273 238,276 238,279 C238,282 241,284 245,283 C248,283 250,280 249,277 C249,274 247,273 244,273 Z"/>
+      <path d="M248,245 C250,242 253,243 253,248 L251,286 C250,289 247,289 247,286 L248,245 Z"/>
+      <path d="M260,284 C256,284 254,281 256,277 C260,268 274,264 286,270 C294,274 296,282 290,285 C282,289 268,289 260,284 Z M264,280 C272,284 282,283 286,279 C288,276 286,272 280,270 C272,267 263,272 264,280 Z"/>
+      <path d="M262,246 C264,242 267,243 267,248 L263,282 C262,285 259,285 259,282 L262,246 Z"/>
+      <circle cx="272" cy="254" r="3.2"/>
+      <path d="M216,246 C214,244 214,241 217,240 C220,239 223,241 223,244 C223,247 220,250 216,252 C214,253 213,252 214,250 C217,249 219,247 219,245 C219,243 217,242 216,243 Z"/>
+      <path d="M239,260 C238,258 240,256 242,256 C243,258 244,260 245,258 C246,256 248,256 249,258 C250,260 251,258 252,256 C254,256 255,258 254,261 C252,263 249,264 246,261 C244,264 241,263 239,260 Z"/>
+      <path d="M238,252 L252,248" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="284" cy="258" r="2.8" fill="none" stroke-width="1.6"/>
+    </g>
+
+    <!-- TYPOGRAPHY: HOFFAD -->
+    <text x="250" y="415" 
+          text-anchor="middle" 
+          font-family="'Cinzel', 'Trajan Pro', 'Baskerville', 'Times New Roman', serif" 
+          font-size="46" 
+          font-weight="700" 
+          letter-spacing="9" 
+          fill="url(#textGrad)">
+      HOFFAD
+    </text>
+
+    <!-- Subtitle -->
+    <text x="250" y="438" 
+          text-anchor="middle" 
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="11" 
+          font-weight="600" 
+          letter-spacing="5" 
+          fill="#4f6e45" 
+          opacity="0.85">
+      QURAN APPLICATION
+    </text>
+  </g>
+</svg>

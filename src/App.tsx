@@ -4,6 +4,7 @@ import { LandingPage } from './LandingPage';
 import { RemoteUploadPage } from './RemoteUploadPage';
 import { TVLoginPage } from './TVLoginPage';
 import HoffadApp from './HoffadApp';
+import { NotFoundPage } from './components/NotFoundPage';
 import { AudioProvider } from './AudioContext';
 
 interface ErrorBoundaryProps {
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/upload" element={<RemoteUploadPage />} />
             <Route path="/tv-login" element={<TVLoginPage />} />
             <Route path="/app/*" element={<HoffadApp />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AudioProvider>
       </BrowserRouter>

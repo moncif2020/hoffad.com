@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 - الصفحة غير موجودة | منصة حُفّاظ</title>
+  <meta name="robots" content="noindex, follow" />
+  <meta name="description" content="عفواً، هذه الصفحة غير موجودة في منصة حُفّاظ الذكية لحفظ القرآن الكريم." />
+
+  <!-- Favicons -->
+  <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
+
+  <style>
+    :root {
+      --primary: #059669;
+      --primary-light: #10b981;
+      --bg-dark: #020617;
+      --card-dark: #0f172a;
+      --border-dark: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', 'Amiri', 'Cairo', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Ambient Background Glow */
+    .glow-1 {
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(2, 6, 23, 0) 70%);
+      pointer-events: none;
+    }
+    .glow-2 {
+      position: absolute;
+      bottom: -100px;
+      left: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(13, 148, 136, 0.15) 0%, rgba(2, 6, 23, 0) 70%);
+      pointer-events: none;
+    }
+
+    header {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #10b981, #047857);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(5, 150, 105, 0.3);
+    }
+
+    .brand-logo img {
+      width: 28px;
+      height: 28px;
+    }
+
+    .brand-text h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Language Switcher */
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border-dark);
+      padding: 4px;
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .lang-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+    }
+
+    main {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--primary-light);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .error-code {
+      font-size: clamp(6rem, 18vw, 11rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      background: linear-gradient(180deg, #ffffff 20%, #94a3b8 70%, #475569 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+      user-select: none;
+    }
+
+    .title {
+      font-size: clamp(1.5rem, 4vw, 2.25rem);
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .desc {
+      font-size: clamp(1rem, 2vw, 1.125rem);
+      color: var(--text-muted);
+      max-width: 580px;
+      margin-bottom: 32px;
+    }
+
+    .verse-card {
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.25), rgba(15, 23, 42, 0.6));
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 36px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .verse-text {
+      color: #6ee7b7;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .verse-ref {
+      color: #34d399;
+      font-size: 0.8rem;
+      opacity: 0.8;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .btn {
+      flex: 1 1 200px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 10px 25px rgba(5, 150, 105, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-light);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: var(--card-dark);
+      color: var(--text-main);
+      border: 1px solid var(--border-dark);
+    }
+
+    .btn-secondary:hover {
+      background: #1e293b;
+      transform: translateY(-2px);
+    }
+
+    footer {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-top: 1px solid var(--border-dark);
+      font-size: 0.8rem;
+      color: #64748b;
+      z-index: 10;
+    }
+
+    footer a {
+      color: inherit;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    footer a:hover {
+      color: var(--primary-light);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+
+  <!-- Header -->
+  <header>
+    <a href="/" class="brand">
+      <div class="brand-logo">
+        <img src="/logo.svg" alt="Hoffad Logo" onerror="this.style.display='none'" />
+      </div>
+      <div class="brand-text">
+        <h1 id="app-name">حُفّاظ</h1>
+        <p id="app-sub">رفيقك الذكي لإتقان القرآن الكريم</p>
+      </div>
+    </a>
+
+    <!-- Language Switcher (AR, EN, FR) -->
+    <div class="lang-switcher">
+      <button class="lang-btn active" id="btn-ar" onclick="setLanguage('ar')">العربية</button>
+      <button class="lang-btn" id="btn-en" onclick="setLanguage('en')">English</button>
+      <button class="lang-btn" id="btn-fr" onclick="setLanguage('fr')">Français</button>
+    </div>
+  </header>
+
+  <!-- Main 404 Content -->
+  <main>
+    <div class="badge" id="badge-text">
+      <span>✦</span> <span id="tag-text">رمز الخطأ 404</span>
+    </div>
+
+    <div class="error-code">404</div>
+
+    <h2 class="title" id="title-text">عفواً، هذه الصفحة غير موجودة</h2>
+    <p class="desc" id="desc-text">
+      يبدو أنك سلكت مساراً غير صحيح أو تم نقل الصفحة إلى عنوان آخر. لا تقلق، وجهتك القرآنية في متناول يدك دائماً.
+    </p>
+
+    <div class="verse-card">
+      <div class="verse-text" id="quote-text">﴿ وَقُل رَّبِّ زِدْنِي عِلْمًا ﴾</div>
+      <div class="verse-ref" id="quote-ref">سورة طه: الآية 114</div>
+    </div>
+
+    <div class="actions">
+      <a href="/" class="btn btn-primary" id="btn-home">
+        <span>⌂</span>
+        <span id="btn-home-text">الصفحة الرئيسية</span>
+      </a>
+      <a href="/app" class="btn btn-secondary" id="btn-quran">
+        <span>📖</span>
+        <span id="btn-quran-text">المصحف الشريف والتسميع</span>
+      </a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div id="footer-copy">جميع الحقوق محفوظة لمنصة حُفّاظ © 2026</div>
+    <div class="footer-links">
+      <a href="/" id="foot-home">الرئيسية</a>
+      <a href="/app" id="foot-quran">المصحف والتسميع</a>
+      <a href="mailto:contact@hoffad.com" id="foot-contact">الدعم الفني</a>
+    </div>
+  </footer>
+
+  <script>
+    const CONTENT = {
+      ar: {
+        dir: 'rtl',
+        lang: 'ar',
+        app_name: 'حُفّاظ',
+        app_sub: 'رفيقك الذكي لإتقان القرآن الكريم',
+        tag: 'رمز الخطأ 404',
+        title: 'عفواً، هذه الصفحة غير موجودة',
+        desc: 'يبدو أنك سلكت مساراً غير صحيح أو تم نقل الصفحة إلى عنوان آخر. لا تقلق، وجهتك القرآنية في متناول يدك دائماً.',
+        quote: '﴿ وَقُل رَّبِّ زِدْنِي عِلْمًا ﴾',
+        quote_ref: 'سورة طه: الآية 114',
+        btn_home: 'الصفحة الرئيسية',
+        btn_quran: 'المصحف الشريف والتسميع',
+        footer_copy: 'جميع الحقوق محفوظة لمنصة حُفّاظ © 2026',
+        foot_home: 'الرئيسية',
+        foot_quran: 'المصحف والتسميع',
+        foot_contact: 'الدعم الفني'
+      },
+      en: {
+        dir: 'ltr',
+        lang: 'en',
+        app_name: 'Hoffad',
+        app_sub: 'Smart Quran Memorization Companion',
+        tag: 'Error Code 404',
+        title: 'Page Not Found',
+        desc: 'The page you are looking for might have been moved, renamed, or is temporarily unavailable. Let us guide you back to your Quran journey.',
+        quote: '“And say: My Lord, increase me in knowledge.”',
+        quote_ref: 'Surah Taha: Ayah 114',
+        btn_home: 'Home Page',
+        btn_quran: 'Holy Quran & Memorizer',
+        footer_copy: 'All rights reserved © Hoffad Platform 2026',
+        foot_home: 'Home',
+        foot_quran: 'Quran & Memorizer',
+        foot_contact: 'Support'
+      },
+      fr: {
+        dir: 'ltr',
+        lang: 'fr',
+        app_name: 'Hoffad',
+        app_sub: 'Compagnon Intelligent de Mémorisation du Coran',
+        tag: 'Code d’erreur 404',
+        title: 'Page Introuvable',
+        desc: 'La page que vous recherchez semble inexistante ou a été déplacée. Laissez-nous vous guider vers votre parcours d’apprentissage du Noble Coran.',
+        quote: '« Et dis: Ô mon Seigneur, accroît mes connaissances ! »',
+        quote_ref: 'Sourate Ta-Ha : Verset 114',
+        btn_home: 'Page d’accueil',
+        btn_quran: 'Noble Coran & Mémorisation',
+        footer_copy: 'Tous droits réservés © Plateforme Hoffad 2026',
+        foot_home: 'Accueil',
+        foot_quran: 'Coran & Mémorisation',
+        foot_contact: 'Assistance'
+      }
+    };
+
+    function setLanguage(lang) {
+      const data = CONTENT[lang] || CONTENT.ar;
+      document.documentElement.dir = data.dir;
+      document.documentElement.lang = data.lang;
+
+      document.getElementById('app-name').textContent = data.app_name;
+      document.getElementById('app-sub').textContent = data.app_sub;
+      document.getElementById('tag-text').textContent = data.tag;
+      document.getElementById('title-text').textContent = data.title;
+      document.getElementById('desc-text').textContent = data.desc;
+      document.getElementById('quote-text').textContent = data.quote;
+      document.getElementById('quote-ref').textContent = data.quote_ref;
+      document.getElementById('btn-home-text').textContent = data.btn_home;
+      document.getElementById('btn-quran-text').textContent = data.btn_quran;
+      document.getElementById('footer-copy').textContent = data.footer_copy;
+      document.getElementById('foot-home').textContent = data.foot_home;
+      document.getElementById('foot-quran').textContent = data.foot_quran;
+      document.getElementById('foot-contact').textContent = data.foot_contact;
+      document.title = '404 - ' + data.title + ' | ' + data.app_name;
+
+      ['ar', 'en', 'fr'].forEach(function(code) {
+        var el = document.getElementById('btn-' + code);
+        if (el) {
+          if (code === lang) el.classList.add('active');
+          else el.classList.remove('active');
+        }
+      });
+
+      try {
+        localStorage.setItem('hoffad_lang', lang);
+      } catch (e) {}
+    }
+
+    // Auto-detect initial language
+    (function init() {
+      var saved = '';
+      try {
+        saved = localStorage.getItem('hoffad_lang');
+      } catch(e) {}
+      
+      if (saved && (saved === 'ar' || saved === 'en' || saved === 'fr')) {
+        setLanguage(saved);
+        return;
+      }
+      
+      var nav = (navigator.language || '').toLowerCase();
+      if (nav.indexOf('fr') === 0) {
+        setLanguage('fr');
+      } else if (nav.indexOf('en') === 0) {
+        setLanguage('en');
+      } else {
+        setLanguage('ar');
+      }
+    })();
+  </script>
+</body>
+</html>
