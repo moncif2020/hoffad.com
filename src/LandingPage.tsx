@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, Sparkles, Mic, TreePine, Users, 
   ArrowLeft, ArrowRight, CheckCircle2, Play, ShieldCheck,
-  BrainCircuit, Sprout, HeartHandshake, ChevronRight, ChevronLeft, Globe, Menu, X as CloseIcon, LogIn, Monitor, X, ChevronUp, ChevronDown, Check, Star, Cloud, Zap, Cpu
+  BrainCircuit, Sprout, HeartHandshake, ChevronRight, ChevronLeft, Globe, Menu, X as CloseIcon, LogIn, Monitor, X, ChevronUp, ChevronDown, Check, Star, Cloud, Zap, Cpu, Headphones
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { landingTranslations, languages } from './landing-translations';
@@ -13,6 +13,7 @@ import { safeJson } from './lib/quran';
 import { signInWithPopup, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, deleteDoc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { AuthModal } from './components/AuthModal';
+import { SupportModal } from './components/SupportModal';
 
 export function LandingPage() {
   const [lang, setLang] = useState('ar');
@@ -21,6 +22,7 @@ export function LandingPage() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isTVModalOpen, setIsTVModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [tvSessionId, setTvSessionId] = useState<string | null>(null);
   const [deviceId] = useState<string>(() => {
@@ -253,6 +255,16 @@ export function LandingPage() {
               >
                 <Star size={16} className="text-amber-500" />
                 <span>{lang === 'ar' ? 'الباقات والأسعار' : 'Pricing'}</span>
+              </button>
+
+              <button 
+                id="landing-support-nav-btn"
+                onClick={() => setIsSupportOpen(true)}
+                className="text-slate-600 hover:text-emerald-600 font-medium transition-colors flex items-center gap-1.5 cursor-pointer text-sm sm:text-base px-2.5 py-1.5 rounded-lg hover:bg-emerald-50/60"
+                title={lang === 'ar' ? 'الدعم الفني والتواصل' : 'Support & Help'}
+              >
+                <Headphones size={17} className="text-emerald-600" />
+                <span>{lang === 'ar' ? 'الدعم الفني' : (lang === 'fr' ? 'Support' : 'Support')}</span>
               </button>
 
               <button 
@@ -658,13 +670,43 @@ export function LandingPage() {
             <span className="font-bold text-xl text-white">{t.app_name}</span>
           </div>
           <p className="mb-6">{t.footer_rights} &copy; {new Date().getFullYear()} {t.app_name}</p>
-          <div className="flex justify-center gap-6 text-sm">
+          <div className="flex justify-center flex-wrap gap-6 text-sm">
             <a href="#privacy" className="hover:text-white transition-colors">{t.footer_privacy}</a>
             <a href="#terms" className="hover:text-white transition-colors">{t.footer_terms}</a>
-            <a href="#" className="hover:text-white transition-colors">{t.footer_contact}</a>
+            <button 
+              id="landing-footer-support-btn"
+              onClick={() => setIsSupportOpen(true)}
+              className="hover:text-emerald-400 text-slate-300 font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Headphones size={15} className="text-emerald-400" />
+              <span>{lang === 'ar' ? 'الدعم الفني (Support)' : (lang === 'fr' ? 'Support & Aide' : 'Support')}</span>
+            </button>
           </div>
         </div>
       </footer>
+
+      {/* Floating Support Button for Site Visitors */}
+      <div className={`fixed bottom-6 ${isRtl ? 'left-6' : 'right-6'} z-40`}>
+        <motion.button
+          id="floating-support-btn"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsSupportOpen(true)}
+          className="flex items-center gap-2.5 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-full shadow-lg shadow-emerald-950/25 border border-emerald-500/30 transition-all font-medium text-sm group cursor-pointer"
+          title={lang === 'ar' ? 'تواصل مع الدعم الفني' : 'Contact Support'}
+        >
+          <div className="relative">
+            <Headphones size={18} className="text-amber-300 group-hover:rotate-12 transition-transform" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full" />
+          </div>
+          <span className="font-bold tracking-wide">
+            {lang === 'ar' ? 'الدعم الفني' : (lang === 'fr' ? 'Support' : 'Support')}
+          </span>
+        </motion.button>
+      </div>
 
       {/* TV Login Modal */}
       {isTVModalOpen && tvSessionId && (
@@ -726,6 +768,15 @@ export function LandingPage() {
         onSuccess={() => navigate('/app')}
         lang={lang}
         initialMode={authModalMode}
+      />
+
+      {/* Support & Inquiries Modal */}
+      <SupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+        lang={lang}
+        userEmail={auth.currentUser?.email || ''}
+        userName={auth.currentUser?.displayName || ''}
       />
     </div>
   );

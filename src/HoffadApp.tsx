@@ -18,6 +18,7 @@ import { useAudio } from './AudioContext';
 import { useCallback } from 'react';
 import { AuthModal } from './components/AuthModal';
 import { ShareAchievementModal } from './components/ShareAchievementModal';
+import { SupportModal } from './components/SupportModal';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { db, auth, storage, googleProvider } from './firebase';
@@ -2097,6 +2098,15 @@ export default function App() {
                   <span>{t[lang].aboutUs}</span>
                 </button>
 
+                <button 
+                  id="sidebar-support-btn"
+                  onClick={() => { setView('about'); setIsSidebarOpen(false); }}
+                  className="flex items-center gap-3 p-3 rounded-xl transition-all w-full text-slate-600 hover:bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                >
+                  <Headphones size={22} className="text-emerald-500" />
+                  <span>{lang === 'ar' ? 'الدعم الفني (Support)' : 'Support'}</span>
+                </button>
+
                 {user && (
                   <div className="mt-auto pt-4 border-t border-slate-100">
                     <div className="flex items-center gap-3 px-3 mb-4">
@@ -2473,6 +2483,7 @@ function UpgradeScreen({ lang, onUpgrade }: { lang: Language, onUpgrade: () => v
 }
 
 function AboutScreen({ lang }: { lang: Language }) {
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
@@ -2490,6 +2501,33 @@ function AboutScreen({ lang }: { lang: Language }) {
           <section>
             <h3 className="text-lg font-bold text-emerald-600 mb-2">{lang === 'ar' ? t['ar'].myApp : t['en'].myApp}</h3>
             <p className="text-slate-600 leading-relaxed">{t[lang].aboutDesc}</p>
+          </section>
+
+          {/* Support and Inquiries Card */}
+          <section className="p-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl border border-emerald-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white rounded-2xl text-emerald-600 shadow-xs border border-emerald-100">
+                <Headphones size={26} />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-base sm:text-lg">
+                  {lang === 'ar' ? 'الدعم الفني والتواصل' : (lang === 'fr' ? 'Support technique' : 'Technical Support & Help')}
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  {lang === 'ar' 
+                    ? 'فريق منصة حُفّاظ متاح للإجابة على استفساراتكم وملاحظاتكم.' 
+                    : 'The Hoffad support team is ready to assist you with inquiries and feedback.'}
+                </p>
+              </div>
+            </div>
+            <button
+              id="about-open-support-btn"
+              onClick={() => setIsSupportOpen(true)}
+              className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <Headphones size={18} />
+              <span>{lang === 'ar' ? 'مراسلة الدعم (Support)' : 'Contact Support'}</span>
+            </button>
           </section>
 
           <section>
@@ -2512,6 +2550,14 @@ function AboutScreen({ lang }: { lang: Language }) {
           </div>
         </div>
       </div>
+
+      <SupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+        lang={lang}
+        userEmail={auth.currentUser?.email || ''}
+        userName={auth.currentUser?.displayName || ''}
+      />
     </motion.div>
   );
 }
